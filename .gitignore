@@ -1,0 +1,15 @@
+node_modules
+.yarn
+dist
+coverage
+.DS_Store
+*.log
+.env
+.env.local
+.env.development.local
+.env.production.local
+.idea
+.vscode
+apps/web/dist
+apps/api/dist
+apps/api/.data
