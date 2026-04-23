@@ -67,36 +67,92 @@ async function run(): Promise<void> {
     );
   }
 
-  const globalEnvironment = await environmentRepository.findOne({
-    where: { userId: user.id, isGlobal: true },
+  const existingEnvironments = await environmentRepository.find({
+    where: { userId: user.id },
   });
+  const existingEnvironmentNames = new Set(
+    existingEnvironments.map((environment) => environment.name.trim().toLowerCase()),
+  );
+  const starterEnvironments = [
+    {
+      name: "Global",
+      isGlobal: true,
+      variables: [
+        {
+          key: "base_url",
+          value: "https://jsonplaceholder.typicode.com",
+          description: "Base URL shared by the demo requests",
+        },
+        {
+          key: "todo_id",
+          value: "1",
+          description: "Demo path variable",
+        },
+        {
+          key: "token",
+          value: "",
+          description: "Demo bearer token placeholder",
+        },
+      ],
+    },
+    {
+      name: "Local",
+      isGlobal: false,
+      variables: [
+        {
+          key: "base_url",
+          value: "http://localhost:3001",
+          description: "Local development API URL",
+        },
+      ],
+    },
+    {
+      name: "Staging",
+      isGlobal: false,
+      variables: [
+        {
+          key: "base_url",
+          value: "https://staging.example.com/api",
+          description: "Starter staging API URL",
+        },
+      ],
+    },
+    {
+      name: "Production",
+      isGlobal: false,
+      variables: [
+        {
+          key: "base_url",
+          value: "https://api.example.com",
+          description: "Starter production API URL",
+        },
+      ],
+    },
+  ];
 
-  if (!globalEnvironment) {
+  for (const starterEnvironment of starterEnvironments) {
+    if (existingEnvironmentNames.has(starterEnvironment.name.toLowerCase())) {
+      continue;
+    }
+
     const environment = await environmentRepository.save(
       environmentRepository.create({
         userId: user.id,
-        name: "Global",
-        isGlobal: true,
+        name: starterEnvironment.name,
+        isGlobal: starterEnvironment.isGlobal,
       }),
     );
 
     await variableRepository.save(
-      variableRepository.create([
-        {
+      variableRepository.create(
+        starterEnvironment.variables.map((variable) => ({
           environmentId: environment.id,
-          key: "base_url",
-          value: "https://jsonplaceholder.typicode.com",
+          key: variable.key,
+          value: variable.value,
           enabled: true,
-          description: "Base URL for demo requests",
-        },
-        {
-          environmentId: environment.id,
-          key: "todo_id",
-          value: "1",
-          enabled: true,
-          description: "Demo path variable",
-        },
-      ]),
+          description: variable.description,
+        })),
+      ),
     );
   }
 

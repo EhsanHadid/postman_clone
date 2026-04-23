@@ -15,6 +15,9 @@
   --accent: #ff6c37;
   --accent-strong: #ff7e4c;
   --accent-soft: rgba(255, 108, 55, 0.1);
+  --send-accent: #2563eb;
+  --send-accent-strong: #3b82f6;
+  --send-accent-soft: rgba(37, 99, 235, 0.14);
   --success: #52d273;
   --warning: #ffb347;
   --danger: #ff6b6b;
@@ -110,28 +113,96 @@ textarea::placeholder {
   padding: 4px 8px;
 }
 
-.select--method {
-  width: 102px;
+.method-picker {
+  position: relative;
+  flex: 0 0 102px;
   min-width: 102px;
+}
+
+.method-picker__button,
+.method-picker__option {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
   font-weight: 700;
   letter-spacing: 0.04em;
 }
 
-.select--method-GET {
-  color: #62d68a;
+.method-picker__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 9px;
+  text-align: left;
 }
 
-.select--method-POST {
-  color: #ffb06d;
+.method-picker__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel-bg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  z-index: 12;
 }
 
-.select--method-PUT,
-.select--method-PATCH {
-  color: #79a8ff;
+.method-picker__option {
+  padding: 0 9px;
+  text-align: left;
 }
 
-.select--method-DELETE {
-  color: #ff8d8d;
+.method-picker__option.is-active {
+  outline: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.method-picker__chevron {
+  color: var(--text-muted);
+  transition: transform 120ms ease;
+}
+
+.method-picker__chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.method-picker__button--GET,
+.method-picker__option--GET {
+  border-color: rgba(34, 197, 94, 0.26);
+  background: rgba(34, 197, 94, 0.12);
+  color: #6ee7b7;
+}
+
+.method-picker__button--POST,
+.method-picker__option--POST {
+  border-color: rgba(249, 115, 22, 0.3);
+  background: rgba(249, 115, 22, 0.12);
+  color: #fdba74;
+}
+
+.method-picker__button--PUT,
+.method-picker__option--PUT {
+  border-color: rgba(59, 130, 246, 0.32);
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+}
+
+.method-picker__button--PATCH,
+.method-picker__option--PATCH {
+  border-color: rgba(168, 85, 247, 0.32);
+  background: rgba(168, 85, 247, 0.12);
+  color: #c4b5fd;
+}
+
+.method-picker__button--DELETE,
+.method-picker__option--DELETE {
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
 }
 
 .button {
@@ -178,6 +249,13 @@ textarea::placeholder {
 
 .button--send {
   min-width: 90px;
+  border-color: rgba(59, 130, 246, 0.4);
+  background: var(--send-accent);
+  color: #eff6ff;
+}
+
+.button--send:hover {
+  background: var(--send-accent-strong);
 }
 
 .chrome-actions,
@@ -295,10 +373,14 @@ textarea::placeholder {
   color: #ffb495;
 }
 
-.method-PUT,
-.method-PATCH {
+.method-PUT {
   background: rgba(121, 168, 255, 0.12);
   color: #9dbdff;
+}
+
+.method-PATCH {
+  background: rgba(168, 85, 247, 0.14);
+  color: #c4b5fd;
 }
 
 .method-DELETE {

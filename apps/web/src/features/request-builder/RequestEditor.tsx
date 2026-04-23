@@ -1,5 +1,7 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EditorTabKey, RequestDefinition } from "@postman-clone/shared-types";
 import {
+  ChevronDownIcon,
   HttpIcon,
   LoaderIcon,
   SaveIcon,
@@ -26,6 +28,83 @@ const editorTabs: Array<{ key: EditorTabKey; label: string }> = [
 
 const httpMethods: RequestDefinition["method"][] = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 const trpcMethods: RequestDefinition["method"][] = ["GET", "POST"];
+
+function MethodPicker({
+  methods,
+  value,
+  disabled,
+  onChange,
+}: {
+  methods: RequestDefinition["method"][];
+  value: RequestDefinition["method"];
+  disabled?: boolean;
+  onChange: (method: RequestDefinition["method"]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const onPointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="method-picker" ref={rootRef}>
+      <button
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        className={`method-picker__button method-picker__button--${value}`}
+        disabled={disabled}
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <span>{value}</span>
+        <ChevronDownIcon className={`method-picker__chevron ${open ? "is-open" : ""}`} />
+      </button>
+
+      {open ? (
+        <div className="method-picker__menu" role="listbox">
+          {methods.map((method) => (
+            <button
+              className={`method-picker__option method-picker__option--${method} ${
+                method === value ? "is-active" : ""
+              }`}
+              key={method}
+              onClick={() => {
+                onChange(method);
+                setOpen(false);
+              }}
+              role="option"
+              type="button"
+            >
+              {method}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function toRequestPayload(draft: RequestDefinition) {
   const normalizedTrpcMethod =
@@ -79,25 +158,20 @@ export function RequestEditor() {
   const fetchEnvironments = useEnvironmentsStore((state) => state.fetchEnvironments);
   const openSaveLocationDialog = useDialogStore((state) => state.openSaveLocationDialog);
   const openNoticeDialog = useDialogStore((state) => state.openNoticeDialog);
+  const activeDialog = useDialogStore((state) => state.dialog);
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
-
-  if (!activeTab) {
-    return (
-      <div className="workspace-empty workbench-panel">
-        <h2>No request open</h2>
-        <p>Open a request from the sidebar or create a new workbench tab to start sending.</p>
-      </div>
-    );
-  }
-
-  const draft = activeTab.draft;
+  const draft = activeTab?.draft ?? null;
   const effectiveMethod =
-    draft.protocolType === "trpc" ? (draft.method === "POST" ? "POST" : "GET") : draft.method;
-  const availableMethods = draft.protocolType === "trpc" ? trpcMethods : httpMethods;
-  const trpcUsesGet = draft.protocolType === "trpc" && effectiveMethod === "GET";
+    draft?.protocolType === "trpc" ? (draft.method === "POST" ? "POST" : "GET") : draft?.method ?? "GET";
+  const availableMethods = draft?.protocolType === "trpc" ? trpcMethods : httpMethods;
+  const trpcUsesGet = draft?.protocolType === "trpc" && effectiveMethod === "GET";
 
   const changeProtocol = (protocolType: RequestDefinition["protocolType"]) => {
+    if (!draft) {
+      return;
+    }
+
     if (protocolType === "trpc") {
       updateActiveDraft({
         protocolType,
@@ -110,12 +184,16 @@ export function RequestEditor() {
     updateActiveDraft({ protocolType });
   };
 
-  const persistRequest = async (location?: {
+  const persistRequest = useCallback(async (location?: {
     name: string;
     collectionId: string;
     folderId: string | null;
     newCollectionName?: string;
   }) => {
+    if (!activeTab || !draft) {
+      return;
+    }
+
     let collectionId = location?.collectionId ?? draft.collectionId;
     const folderId = location?.folderId ?? draft.folderId;
     const name = location?.name ?? draft.name;
@@ -133,9 +211,13 @@ export function RequestEditor() {
 
     markSaved(activeTab.id, saved);
     await fetchCollections();
-  };
+  }, [activeTab, draft, fetchCollections, markSaved]);
 
-  const saveRequest = async () => {
+  const saveRequest = useCallback(async () => {
+    if (!activeTab || !draft) {
+      return;
+    }
+
     try {
       if (!draft.collectionId && !activeTab.requestId) {
         openSaveLocationDialog({
@@ -162,9 +244,19 @@ export function RequestEditor() {
         description: getErrorMessage(error),
       });
     }
-  };
+  }, [
+    activeTab,
+    draft,
+    openSaveLocationDialog,
+    openNoticeDialog,
+    persistRequest,
+  ]);
 
-  const sendRequest = async () => {
+  const sendRequest = useCallback(async () => {
+    if (!activeTab || !draft) {
+      return;
+    }
+
     const payload = {
       requestId: activeTab.requestId ?? undefined,
       activeEnvironmentId,
@@ -198,7 +290,55 @@ export function RequestEditor() {
     } finally {
       setActiveTabSending(activeTab.id, false);
     }
-  };
+  }, [
+    activeEnvironmentId,
+    activeTab,
+    draft,
+    fetchHistory,
+    fetchCookies,
+    fetchEnvironments,
+    openNoticeDialog,
+    setActiveTabSending,
+    setResponse,
+  ]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (activeDialog) {
+        return;
+      }
+
+      const hasPrimaryModifier = event.ctrlKey || event.metaKey;
+      if (!hasPrimaryModifier) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+
+      if (key === "s") {
+        event.preventDefault();
+        void saveRequest();
+        return;
+      }
+
+      if (event.key === "Enter" && !activeTab?.isSending) {
+        event.preventDefault();
+        void sendRequest();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeDialog, activeTab?.isSending, saveRequest, sendRequest]);
+
+  if (!activeTab || !draft) {
+    return (
+      <div className="workspace-empty workbench-panel">
+        <h2>No request open</h2>
+        <p>Open a request from the sidebar or create a new workbench tab to start sending.</p>
+      </div>
+    );
+  }
 
   return (
     <section className="request-editor workbench-panel">
@@ -246,6 +386,7 @@ export function RequestEditor() {
             className="text-action text-action--accent"
             disabled={activeTab.isSending}
             onClick={() => void saveRequest()}
+            title="Save request (Ctrl+S)"
             type="button"
           >
             <SaveIcon />
@@ -255,21 +396,12 @@ export function RequestEditor() {
       </div>
 
       <div className="request-editor__requestline">
-        <select
-          className={`select select--method select--method-${effectiveMethod}`}
+        <MethodPicker
+          disabled={activeTab.isSending}
+          methods={availableMethods}
+          onChange={(method) => updateActiveDraft({ method })}
           value={effectiveMethod}
-          onChange={(event) =>
-            updateActiveDraft({
-              method: event.target.value as RequestDefinition["method"],
-            })
-          }
-        >
-          {availableMethods.map((method) => (
-            <option key={method} value={method}>
-              {method}
-            </option>
-          ))}
-        </select>
+        />
 
         <input
           className="input input--dense request-editor__url"
@@ -297,6 +429,7 @@ export function RequestEditor() {
           }`}
           disabled={activeTab.isSending}
           onClick={() => void sendRequest()}
+          title="Send request (Ctrl+Enter)"
           type="button"
         >
           {activeTab.isSending ? <LoaderIcon className="spin" /> : null}

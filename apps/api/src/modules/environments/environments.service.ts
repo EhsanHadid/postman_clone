@@ -15,6 +15,78 @@ import {
   UpdateEnvironmentVariableDto,
 } from "./dto/environment.dto";
 
+const STARTER_ENVIRONMENTS = [
+  {
+    name: "Global",
+    isGlobal: true,
+    variables: [
+      {
+        key: "base_url",
+        value: "http://localhost:3001",
+        description: "Shared base URL used across requests",
+      },
+      {
+        key: "token",
+        value: "",
+        description: "Shared bearer token placeholder",
+      },
+      {
+        key: "api_version",
+        value: "v1",
+        description: "Example API version variable",
+      },
+    ],
+  },
+  {
+    name: "Local",
+    isGlobal: false,
+    variables: [
+      {
+        key: "base_url",
+        value: "http://localhost:3001",
+        description: "Starter local API URL",
+      },
+      {
+        key: "token",
+        value: "",
+        description: "Local environment token placeholder",
+      },
+    ],
+  },
+  {
+    name: "Staging",
+    isGlobal: false,
+    variables: [
+      {
+        key: "base_url",
+        value: "https://staging.example.com/api",
+        description: "Starter staging API URL",
+      },
+      {
+        key: "token",
+        value: "",
+        description: "Staging environment token placeholder",
+      },
+    ],
+  },
+  {
+    name: "Production",
+    isGlobal: false,
+    variables: [
+      {
+        key: "base_url",
+        value: "https://api.example.com",
+        description: "Starter production API URL",
+      },
+      {
+        key: "token",
+        value: "",
+        description: "Production environment token placeholder",
+      },
+    ],
+  },
+] as const;
+
 @Injectable()
 export class EnvironmentsService {
   constructor(
@@ -24,7 +96,9 @@ export class EnvironmentsService {
     private readonly variableRepository: Repository<EnvironmentVariableEntity>,
   ) {}
 
-  list(userId: string) {
+  async list(userId: string) {
+    await this.ensureStarterEnvironments(userId);
+
     return this.environmentRepository.find({
       where: { userId },
       relations: { variables: true },
@@ -121,6 +195,8 @@ export class EnvironmentsService {
   }
 
   async ensureGlobalEnvironment(userId: string): Promise<EnvironmentEntity> {
+    await this.ensureStarterEnvironments(userId);
+
     const existing = await this.environmentRepository.findOne({
       where: { userId, isGlobal: true },
       relations: { variables: true },
@@ -258,5 +334,74 @@ export class EnvironmentsService {
         await this.environmentRepository.save(environment);
       }
     }
+  }
+
+  private async ensureStarterEnvironments(userId: string): Promise<void> {
+    const environments = await this.environmentRepository.find({
+      where: { userId },
+    });
+    const normalizedNames = new Set(
+      environments.map((environment) => environment.name.trim().toLowerCase()),
+    );
+    const hasGlobal = environments.some((environment) => environment.isGlobal);
+    const shouldCreateStarterProfiles =
+      environments.length === 0 ||
+      (environments.length === 1 &&
+        hasGlobal &&
+        normalizedNames.has(STARTER_ENVIRONMENTS[0].name.toLowerCase()));
+
+    if (!hasGlobal) {
+      const starter = STARTER_ENVIRONMENTS[0];
+      await this.createStarterEnvironment(userId, starter.name, starter.isGlobal, starter.variables);
+      normalizedNames.add(starter.name.toLowerCase());
+    }
+
+    if (shouldCreateStarterProfiles) {
+      for (const starter of STARTER_ENVIRONMENTS.slice(1)) {
+        if (!normalizedNames.has(starter.name.toLowerCase())) {
+          await this.createStarterEnvironment(
+            userId,
+            starter.name,
+            starter.isGlobal,
+            starter.variables,
+          );
+        }
+      }
+    }
+  }
+
+  private async createStarterEnvironment(
+    userId: string,
+    name: string,
+    isGlobal: boolean,
+    variables: ReadonlyArray<{
+      key: string;
+      value: string;
+      description: string;
+    }>,
+  ): Promise<void> {
+    const environment = await this.environmentRepository.save(
+      this.environmentRepository.create({
+        userId,
+        name,
+        isGlobal,
+      }),
+    );
+
+    if (!variables.length) {
+      return;
+    }
+
+    await this.variableRepository.save(
+      this.variableRepository.create(
+        variables.map((variable) => ({
+          environmentId: environment.id,
+          key: variable.key,
+          value: variable.value,
+          enabled: true,
+          description: variable.description,
+        })),
+      ),
+    );
   }
 }

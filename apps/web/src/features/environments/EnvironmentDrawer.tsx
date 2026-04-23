@@ -13,6 +13,25 @@ export function EnvironmentDrawer() {
   const fetchEnvironments = useEnvironmentsStore((state) => state.fetchEnvironments);
   const openTextDialog = useDialogStore((state) => state.openTextDialog);
   const openKeyValueDialog = useDialogStore((state) => state.openKeyValueDialog);
+  const renameEnvironment = (environmentId: string, currentName: string) => {
+    openTextDialog({
+      title: "Edit Environment",
+      description: "Rename this environment without changing its variables.",
+      label: "Environment name",
+      initialValue: currentName,
+      submitLabel: "Save Environment",
+      onSubmit: async (name) => {
+        await api.environments.update(environmentId, { name });
+        await fetchEnvironments();
+      },
+    });
+  };
+
+  const makeGlobal = async (environmentId: string) => {
+    await api.environments.update(environmentId, { isGlobal: true });
+    setActiveEnvironment(environmentId);
+    await fetchEnvironments();
+  };
 
   const createEnvironment = async () => {
     openTextDialog({
@@ -93,6 +112,22 @@ export function EnvironmentDrawer() {
                 >
                   + Variable
                 </button>
+                <button
+                  className="button button-subtle"
+                  onClick={() => renameEnvironment(environment.id, environment.name)}
+                  type="button"
+                >
+                  Edit
+                </button>
+                {!environment.isGlobal ? (
+                  <button
+                    className="button button-subtle"
+                    onClick={() => void makeGlobal(environment.id)}
+                    type="button"
+                  >
+                    Make Global
+                  </button>
+                ) : null}
               </div>
             </div>
 

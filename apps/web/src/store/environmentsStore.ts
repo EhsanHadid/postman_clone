@@ -20,11 +20,11 @@ export const useEnvironmentsStore = create<EnvironmentsState>()(
         const globalEnvironment = environments.find((environment) => environment.isGlobal);
         set((state) => ({
           environments,
-          activeEnvironmentId:
-            state.activeEnvironmentId ??
-            globalEnvironment?.id ??
-            environments[0]?.id ??
-            null,
+          activeEnvironmentId: environments.some(
+            (environment) => environment.id === state.activeEnvironmentId,
+          )
+            ? state.activeEnvironmentId
+            : globalEnvironment?.id ?? environments[0]?.id ?? null,
         }));
       },
       setActiveEnvironment: (id) => set({ activeEnvironmentId: id }),
