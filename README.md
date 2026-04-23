@@ -108,6 +108,8 @@ The API container runs migrations and seed data automatically on startup, so the
 - Username: `demo`
 - Password: `demo123`
 
+When Postman Clone runs in Docker, requests to `localhost` or `127.0.0.1` are automatically mapped to `host.docker.internal` so the executor can still reach services running on your host machine.
+
 ## Useful Commands
 
 ```bash

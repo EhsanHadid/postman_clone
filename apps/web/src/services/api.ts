@@ -1,4 +1,5 @@
 import type {
+  CollectionDefinition,
   CollectionTree,
   CookieDefinition,
   EnvironmentDefinition,
@@ -61,9 +62,12 @@ export const api = {
   collections: {
     list: () => apiRequest<CollectionTree[]>("/collections"),
     create: (payload: Record<string, unknown>) =>
-      apiRequest("/collections", { method: "POST", bodyJson: payload }),
+      apiRequest<CollectionDefinition>("/collections", { method: "POST", bodyJson: payload }),
     update: (id: string, payload: Record<string, unknown>) =>
-      apiRequest(`/collections/${id}`, { method: "PATCH", bodyJson: payload }),
+      apiRequest<CollectionDefinition>(`/collections/${id}`, {
+        method: "PATCH",
+        bodyJson: payload,
+      }),
     delete: (id: string) => apiRequest(`/collections/${id}`, { method: "DELETE" }),
   },
   folders: {
@@ -119,13 +123,8 @@ export const api = {
     delete: (id: string) => apiRequest(`/history/${id}`, { method: "DELETE" }),
   },
   execution: {
-    http: (payload: Record<string, unknown>) =>
-      apiRequest<ExecutionResponsePayload>("/execute/http", {
-        method: "POST",
-        bodyJson: payload,
-      }),
-    trpc: (payload: Record<string, unknown>) =>
-      apiRequest<ExecutionResponsePayload>("/execute/trpc", {
+    send: (payload: Record<string, unknown>) =>
+      apiRequest<ExecutionResponsePayload>("/execute", {
         method: "POST",
         bodyJson: payload,
       }),

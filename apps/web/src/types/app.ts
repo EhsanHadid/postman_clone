@@ -9,6 +9,7 @@ export interface RequestTabState {
   requestId: string | null;
   title: string;
   isDirty: boolean;
+  isSending: boolean;
   activeEditorTab: EditorTabKey;
   draft: RequestDefinition;
   response: ExecutionResponsePayload | null;

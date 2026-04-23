@@ -3,7 +3,7 @@ import Editor from "@monaco-editor/react";
 interface CodeEditorProps {
   value: string;
   language: string;
-  height?: number;
+  height?: number | string;
   readOnly?: boolean;
   onChange?: (value: string) => void;
 }

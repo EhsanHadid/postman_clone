@@ -38,7 +38,7 @@ export function KeyValueTable<T extends TableRow>({
   };
 
   return (
-    <div className="kv-table">
+    <div className={`kv-table ${mode === "formData" ? "kv-table--formdata" : "kv-table--standard"}`}>
       <div className="kv-table__header">
         <span>Enabled</span>
         <span>Key</span>
@@ -56,14 +56,14 @@ export function KeyValueTable<T extends TableRow>({
             />
           </label>
           <input
-            className="input"
+            className="input input--dense"
             value={row.key}
             placeholder="Key"
             onChange={(event) => updateRow(index, { key: event.target.value } as T)}
           />
           {mode === "formData" ? (
             <select
-              className="select"
+              className="select select--compact"
               value={(row as MultipartFormValue).valueType ?? "text"}
               onChange={(event) =>
                 updateRow(index, { valueType: event.target.value as "text" | "file" } as T)
@@ -74,7 +74,7 @@ export function KeyValueTable<T extends TableRow>({
             </select>
           ) : null}
           <input
-            className="input"
+            className="input input--dense"
             value={row.value}
             placeholder={
               mode === "formData" && (row as MultipartFormValue).valueType === "file"
@@ -83,13 +83,17 @@ export function KeyValueTable<T extends TableRow>({
             }
             onChange={(event) => updateRow(index, { value: event.target.value } as T)}
           />
-          <button className="button button-subtle" onClick={() => removeRow(index)} type="button">
+          <button
+            className="text-action text-action--quiet"
+            onClick={() => removeRow(index)}
+            type="button"
+          >
             Remove
           </button>
         </div>
       ))}
-      <button className="button button-subtle" onClick={addRow} type="button">
-        Add Row
+      <button className="text-action text-action--accent" onClick={addRow} type="button">
+        Add row
       </button>
     </div>
   );

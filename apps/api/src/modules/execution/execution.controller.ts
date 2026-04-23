@@ -10,6 +10,11 @@ import { ExecutionService } from "./execution.service";
 export class ExecutionController {
   constructor(private readonly executionService: ExecutionService) {}
 
+  @Post()
+  execute(@CurrentUser() user: UserEntity, @Body() dto: ExecuteRequestDto) {
+    return this.executionService.execute(user.id, dto);
+  }
+
   @Post("http")
   executeHttp(@CurrentUser() user: UserEntity, @Body() dto: ExecuteRequestDto) {
     return this.executionService.execute(user.id, {

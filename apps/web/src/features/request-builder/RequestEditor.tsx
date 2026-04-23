@@ -1,26 +1,47 @@
-import type { RequestDefinition } from "@postman-clone/shared-types";
+import type { EditorTabKey, RequestDefinition } from "@postman-clone/shared-types";
+import {
+  HttpIcon,
+  LoaderIcon,
+  SaveIcon,
+  TrpcIcon,
+} from "../../components/AppIcons";
+import { CodeEditor } from "../../components/CodeEditor";
+import { KeyValueTable } from "../../components/KeyValueTable";
 import { api } from "../../services/api";
 import { useCollectionsStore } from "../../store/collectionsStore";
 import { useCookiesStore } from "../../store/cookiesStore";
+import { useDialogStore } from "../../store/dialogStore";
 import { useEnvironmentsStore } from "../../store/environmentsStore";
 import { useHistoryStore } from "../../store/historyStore";
 import { useTabsStore } from "../../store/tabsStore";
-import { CodeEditor } from "../../components/CodeEditor";
-import { KeyValueTable } from "../../components/KeyValueTable";
-import { SectionCard } from "../../components/SectionCard";
+
+const editorTabs: Array<{ key: EditorTabKey; label: string }> = [
+  { key: "params", label: "Params" },
+  { key: "headers", label: "Headers" },
+  { key: "body", label: "Body" },
+  { key: "auth", label: "Authorization" },
+  { key: "cookies", label: "Cookies" },
+  { key: "scripts", label: "Scripts" },
+];
+
+const httpMethods: RequestDefinition["method"][] = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+const trpcMethods: RequestDefinition["method"][] = ["GET", "POST"];
 
 function toRequestPayload(draft: RequestDefinition) {
+  const normalizedTrpcMethod =
+    draft.protocolType === "trpc" ? (draft.method === "POST" ? "POST" : "GET") : draft.method;
+
   return {
     collectionId: draft.collectionId,
     folderId: draft.folderId,
     name: draft.name,
     protocolType: draft.protocolType,
-    method: draft.method,
+    method: normalizedTrpcMethod,
     url: draft.url,
     trpcProcedurePath: draft.trpcProcedurePath,
     headers: draft.headers,
     queryParams: draft.queryParams,
-    bodyType: draft.bodyType,
+    bodyType: draft.protocolType === "trpc" ? "json" : draft.bodyType,
     body: draft.body,
     formData: draft.formData,
     authType: draft.authType,
@@ -31,11 +52,24 @@ function toRequestPayload(draft: RequestDefinition) {
   };
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Something went wrong while processing this request.";
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export function RequestEditor() {
   const tabs = useTabsStore((state) => state.tabs);
   const activeTabId = useTabsStore((state) => state.activeTabId);
   const updateActiveDraft = useTabsStore((state) => state.updateActiveDraft);
   const setActiveEditorTab = useTabsStore((state) => state.setActiveEditorTab);
+  const setActiveTabSending = useTabsStore((state) => state.setSending);
   const setResponse = useTabsStore((state) => state.setResponse);
   const markSaved = useTabsStore((state) => state.markSaved);
   const activeEnvironmentId = useEnvironmentsStore((state) => state.activeEnvironmentId);
@@ -43,32 +77,91 @@ export function RequestEditor() {
   const fetchHistory = useHistoryStore((state) => state.fetchHistory);
   const fetchCookies = useCookiesStore((state) => state.fetchCookies);
   const fetchEnvironments = useEnvironmentsStore((state) => state.fetchEnvironments);
+  const openSaveLocationDialog = useDialogStore((state) => state.openSaveLocationDialog);
+  const openNoticeDialog = useDialogStore((state) => state.openNoticeDialog);
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
 
   if (!activeTab) {
     return (
-      <div className="workspace-empty card">
+      <div className="workspace-empty workbench-panel">
         <h2>No request open</h2>
-        <p>Create a scratch tab or open a saved request from the collections sidebar.</p>
+        <p>Open a request from the sidebar or create a new workbench tab to start sending.</p>
       </div>
     );
   }
 
   const draft = activeTab.draft;
+  const effectiveMethod =
+    draft.protocolType === "trpc" ? (draft.method === "POST" ? "POST" : "GET") : draft.method;
+  const availableMethods = draft.protocolType === "trpc" ? trpcMethods : httpMethods;
+  const trpcUsesGet = draft.protocolType === "trpc" && effectiveMethod === "GET";
 
-  const saveRequest = async () => {
-    if (!draft.collectionId && !activeTab.requestId) {
-      window.alert("Assign this request to a collection before saving.");
+  const changeProtocol = (protocolType: RequestDefinition["protocolType"]) => {
+    if (protocolType === "trpc") {
+      updateActiveDraft({
+        protocolType,
+        method: draft.method === "POST" ? "POST" : "GET",
+        bodyType: "json",
+      });
       return;
     }
 
+    updateActiveDraft({ protocolType });
+  };
+
+  const persistRequest = async (location?: {
+    name: string;
+    collectionId: string;
+    folderId: string | null;
+    newCollectionName?: string;
+  }) => {
+    let collectionId = location?.collectionId ?? draft.collectionId;
+    const folderId = location?.folderId ?? draft.folderId;
+    const name = location?.name ?? draft.name;
+
+    if (location?.newCollectionName?.trim()) {
+      const createdCollection = await api.collections.create({
+        name: location.newCollectionName.trim(),
+      });
+      collectionId = createdCollection.id;
+    }
+
     const saved = activeTab.requestId
-      ? await api.requests.update(activeTab.requestId, toRequestPayload(draft))
-      : await api.requests.create(toRequestPayload(draft));
+      ? await api.requests.update(activeTab.requestId, toRequestPayload({ ...draft, name, collectionId, folderId }))
+      : await api.requests.create(toRequestPayload({ ...draft, name, collectionId, folderId }));
 
     markSaved(activeTab.id, saved);
     await fetchCollections();
+  };
+
+  const saveRequest = async () => {
+    try {
+      if (!draft.collectionId && !activeTab.requestId) {
+        openSaveLocationDialog({
+          title: "Save Request",
+          description: "Choose where this request should live in your collections tree.",
+          initialName: draft.name,
+          initialCollectionId: draft.collectionId || undefined,
+          initialFolderId: draft.folderId,
+          onSubmit: async (location) => {
+            await persistRequest(location);
+          },
+        });
+        return;
+      }
+
+      await persistRequest({
+        name: draft.name,
+        collectionId: draft.collectionId,
+        folderId: draft.folderId,
+      });
+    } catch (error) {
+      openNoticeDialog({
+        title: "Unable to save request",
+        description: getErrorMessage(error),
+      });
+    }
   };
 
   const sendRequest = async () => {
@@ -78,105 +171,155 @@ export function RequestEditor() {
       request: toRequestPayload(draft),
     };
 
-    const response =
-      draft.protocolType === "trpc"
-        ? await api.execution.trpc(payload)
-        : await api.execution.http(payload);
+    const startedAt = Date.now();
+    setActiveTabSending(activeTab.id, true);
 
-    setResponse(activeTab.id, response);
-    await Promise.all([fetchHistory(), fetchCookies(), fetchEnvironments()]);
+    try {
+      const response = await api.execution.send(payload);
+      const elapsedMs = Date.now() - startedAt;
+
+      if (elapsedMs < 120) {
+        await wait(120 - elapsedMs);
+      }
+
+      setResponse(activeTab.id, response);
+      await Promise.all([fetchHistory(), fetchCookies(), fetchEnvironments()]);
+    } catch (error) {
+      const elapsedMs = Date.now() - startedAt;
+
+      if (elapsedMs < 120) {
+        await wait(120 - elapsedMs);
+      }
+
+      openNoticeDialog({
+        title: "Request failed",
+        description: getErrorMessage(error),
+      });
+    } finally {
+      setActiveTabSending(activeTab.id, false);
+    }
   };
 
   return (
-    <div className="request-editor">
-      <SectionCard
-        title="Request Builder"
-        actions={
-          <div className="request-editor__actions">
-            <button className="button button-subtle" onClick={() => void saveRequest()} type="button">
-              Save
-            </button>
-            <button className="button button-primary" onClick={() => void sendRequest()} type="button">
-              Send
-            </button>
-          </div>
-        }
-      >
-        <div className="request-editor__meta">
+    <section className="request-editor workbench-panel">
+      <div className="request-editor__header">
+        <div className="request-editor__title-wrap">
           <input
-            className="input"
+            className="input input--dense request-editor__title"
             value={draft.name}
             onChange={(event) => updateActiveDraft({ name: event.target.value })}
-            placeholder="Request name"
+            placeholder="Untitled Request"
           />
-          <select
-            className="select"
-            value={draft.protocolType}
-            onChange={(event) =>
-              updateActiveDraft({
-                protocolType: event.target.value as RequestDefinition["protocolType"],
-              })
-            }
-          >
-            <option value="http">HTTP</option>
-            <option value="trpc">tRPC</option>
-          </select>
-          <select
-            className="select"
-            value={draft.method}
-            disabled={draft.protocolType === "trpc"}
-            onChange={(event) =>
-              updateActiveDraft({
-                method: event.target.value as RequestDefinition["method"],
-              })
-            }
-          >
-            <option value="GET">GET</option>
-            <option value="POST">POST</option>
-            <option value="PUT">PUT</option>
-            <option value="PATCH">PATCH</option>
-            <option value="DELETE">DELETE</option>
-          </select>
-          <input
-            className="input request-editor__url"
-            value={draft.url}
-            onChange={(event) => updateActiveDraft({ url: event.target.value })}
-            placeholder={
-              draft.protocolType === "trpc"
-                ? "https://api.local"
-                : "https://api.example.com/resource"
-            }
-          />
+          <div className="request-editor__subtitle">
+            {activeTab.requestId ? "Saved request" : "Unsaved tab"} |{" "}
+            {draft.protocolType === "trpc"
+              ? `${trpcUsesGet ? "Query" : "Mutation"} over tRPC`
+              : "HTTP request"}
+          </div>
         </div>
 
-        {draft.protocolType === "trpc" ? (
-          <div className="request-editor__meta">
-            <input
-              className="input"
-              value={draft.trpcProcedurePath ?? ""}
-              onChange={(event) =>
-                updateActiveDraft({ trpcProcedurePath: event.target.value || null })
-              }
-              placeholder="Procedure path"
-            />
-          </div>
-        ) : null}
-
-        <div className="editor-tabs">
-          {(["params", "headers", "body", "auth", "cookies", "scripts"] as const).map((tab) => (
+        <div className="request-editor__actions">
+          <div className="protocol-switch" role="tablist" aria-label="Request protocol">
             <button
-              key={tab}
-              className={`editor-tabs__tab ${
-                activeTab.activeEditorTab === tab ? "is-active" : ""
+              className={`protocol-switch__button ${
+                draft.protocolType === "http" ? "is-active" : ""
               }`}
-              onClick={() => setActiveEditorTab(tab)}
+              onClick={() => changeProtocol("http")}
               type="button"
             >
-              {tab}
+              <HttpIcon />
+              <span>HTTP</span>
             </button>
-          ))}
-        </div>
+            <button
+              className={`protocol-switch__button ${
+                draft.protocolType === "trpc" ? "is-active" : ""
+              }`}
+              onClick={() => changeProtocol("trpc")}
+              type="button"
+            >
+              <TrpcIcon />
+              <span>tRPC</span>
+            </button>
+          </div>
 
+          <button
+            className="text-action text-action--accent"
+            disabled={activeTab.isSending}
+            onClick={() => void saveRequest()}
+            type="button"
+          >
+            <SaveIcon />
+            <span>save</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="request-editor__requestline">
+        <select
+          className={`select select--method select--method-${effectiveMethod}`}
+          value={effectiveMethod}
+          onChange={(event) =>
+            updateActiveDraft({
+              method: event.target.value as RequestDefinition["method"],
+            })
+          }
+        >
+          {availableMethods.map((method) => (
+            <option key={method} value={method}>
+              {method}
+            </option>
+          ))}
+        </select>
+
+        <input
+          className="input input--dense request-editor__url"
+          value={draft.url}
+          onChange={(event) => updateActiveDraft({ url: event.target.value })}
+          placeholder={
+            draft.protocolType === "trpc" ? "https://api.local" : "https://api.example.com/resource"
+          }
+        />
+
+        {draft.protocolType === "trpc" ? (
+          <input
+            className="input input--dense request-editor__procedure"
+            value={draft.trpcProcedurePath ?? ""}
+            onChange={(event) =>
+              updateActiveDraft({ trpcProcedurePath: event.target.value || null })
+            }
+            placeholder="router.procedure"
+          />
+        ) : null}
+
+        <button
+          className={`button button-primary button--send ${
+            activeTab.isSending ? "is-loading" : ""
+          }`}
+          disabled={activeTab.isSending}
+          onClick={() => void sendRequest()}
+          type="button"
+        >
+          {activeTab.isSending ? <LoaderIcon className="spin" /> : null}
+          <span>{activeTab.isSending ? "Sending..." : "Send"}</span>
+        </button>
+      </div>
+
+      <div className="editor-tabs editor-tabs--workbench">
+        {editorTabs.map((tab) => (
+          <button
+            key={tab.key}
+            className={`editor-tabs__tab ${
+              activeTab.activeEditorTab === tab.key ? "is-active" : ""
+            }`}
+            onClick={() => setActiveEditorTab(tab.key)}
+            type="button"
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="request-editor__pane">
         {activeTab.activeEditorTab === "params" ? (
           <KeyValueTable
             rows={draft.queryParams}
@@ -193,135 +336,178 @@ export function RequestEditor() {
 
         {activeTab.activeEditorTab === "body" ? (
           <div className="request-editor__body">
-            <select
-              className="select"
-              value={draft.bodyType}
-              onChange={(event) =>
-                updateActiveDraft({
-                  bodyType: event.target.value as RequestDefinition["bodyType"],
-                })
-              }
-            >
-              <option value="none">No Body</option>
-              <option value="json">JSON</option>
-              <option value="text">Raw Text</option>
-              <option value="form-urlencoded">x-www-form-urlencoded</option>
-              <option value="multipart-form-data">multipart/form-data</option>
-            </select>
+            {draft.protocolType === "trpc" ? (
+              <>
+                <div className="request-editor__hint">
+                  {trpcUsesGet
+                    ? "GET sends the tRPC input as the `input` query parameter."
+                    : "POST sends the tRPC input as JSON in the request body."}
+                </div>
+                <CodeEditor
+                  height={310}
+                  language="json"
+                  value={draft.body}
+                  onChange={(body) => updateActiveDraft({ body })}
+                />
+              </>
+            ) : (
+              <div className="request-editor__body-controls">
+                <label className="request-editor__field">
+                  <span>Body type</span>
+                  <select
+                    className="select select--compact"
+                    value={draft.bodyType}
+                    onChange={(event) =>
+                      updateActiveDraft({
+                        bodyType: event.target.value as RequestDefinition["bodyType"],
+                      })
+                    }
+                  >
+                    <option value="none">No Body</option>
+                    <option value="json">JSON</option>
+                    <option value="text">Raw Text</option>
+                    <option value="form-urlencoded">x-www-form-urlencoded</option>
+                    <option value="multipart-form-data">multipart/form-data</option>
+                  </select>
+                </label>
+              </div>
+            )}
 
-            {draft.bodyType === "json" || draft.bodyType === "text" ? (
+            {draft.protocolType !== "trpc" &&
+            (draft.bodyType === "json" || draft.bodyType === "text") ? (
               <CodeEditor
-                height={290}
+                height={310}
                 language={draft.bodyType === "json" ? "json" : "plaintext"}
                 value={draft.body}
                 onChange={(body) => updateActiveDraft({ body })}
               />
             ) : null}
 
-            {draft.bodyType === "form-urlencoded" || draft.bodyType === "multipart-form-data" ? (
+            {draft.protocolType !== "trpc" &&
+            (draft.bodyType === "form-urlencoded" ||
+              draft.bodyType === "multipart-form-data") ? (
               <KeyValueTable
                 rows={draft.formData}
                 mode="formData"
                 onChange={(formData) => updateActiveDraft({ formData })}
               />
             ) : null}
+
+            {draft.protocolType !== "trpc" && draft.bodyType === "none" ? (
+              <div className="request-editor__hint">
+                This request currently sends no payload body.
+              </div>
+            ) : null}
           </div>
         ) : null}
 
         {activeTab.activeEditorTab === "auth" ? (
           <div className="auth-editor">
-            <select
-              className="select"
-              value={draft.authType ?? "none"}
-              onChange={(event) =>
-                updateActiveDraft({
-                  authType: event.target.value as RequestDefinition["authType"],
-                  authConfig:
-                    event.target.value === "basic"
-                      ? { username: "", password: "" }
-                      : event.target.value === "bearer"
-                        ? { token: "" }
-                        : null,
-                })
-              }
-            >
-              <option value="inherit">Inherit</option>
-              <option value="none">No Auth</option>
-              <option value="basic">Basic</option>
-              <option value="bearer">Bearer</option>
-            </select>
+            <label className="request-editor__field">
+              <span>Authorization type</span>
+              <select
+                className="select select--compact"
+                value={draft.authType ?? "none"}
+                onChange={(event) =>
+                  updateActiveDraft({
+                    authType: event.target.value as RequestDefinition["authType"],
+                    authConfig:
+                      event.target.value === "basic"
+                        ? { username: "", password: "" }
+                        : event.target.value === "bearer"
+                          ? { token: "" }
+                          : null,
+                  })
+                }
+              >
+                <option value="inherit">Inherit from parent</option>
+                <option value="none">No Auth</option>
+                <option value="basic">Basic Auth</option>
+                <option value="bearer">Bearer Token</option>
+              </select>
+            </label>
 
             {draft.authType === "basic" ? (
-              <div className="request-editor__meta">
-                <input
-                  className="input"
-                  placeholder="Username"
-                  value={draft.authConfig?.username ?? ""}
-                  onChange={(event) =>
-                    updateActiveDraft({
-                      authConfig: {
-                        ...(draft.authConfig ?? {}),
-                        username: event.target.value,
-                      },
-                    })
-                  }
-                />
-                <input
-                  className="input"
-                  placeholder="Password"
-                  type="password"
-                  value={draft.authConfig?.password ?? ""}
-                  onChange={(event) =>
-                    updateActiveDraft({
-                      authConfig: {
-                        ...(draft.authConfig ?? {}),
-                        password: event.target.value,
-                      },
-                    })
-                  }
-                />
+              <div className="request-editor__field-grid">
+                <label className="request-editor__field">
+                  <span>Username</span>
+                  <input
+                    className="input input--dense"
+                    placeholder="Username"
+                    value={draft.authConfig?.username ?? ""}
+                    onChange={(event) =>
+                      updateActiveDraft({
+                        authConfig: {
+                          ...(draft.authConfig ?? {}),
+                          username: event.target.value,
+                        },
+                      })
+                    }
+                  />
+                </label>
+                <label className="request-editor__field">
+                  <span>Password</span>
+                  <input
+                    className="input input--dense"
+                    placeholder="Password"
+                    type="password"
+                    value={draft.authConfig?.password ?? ""}
+                    onChange={(event) =>
+                      updateActiveDraft({
+                        authConfig: {
+                          ...(draft.authConfig ?? {}),
+                          password: event.target.value,
+                        },
+                      })
+                    }
+                  />
+                </label>
               </div>
             ) : null}
 
             {draft.authType === "bearer" ? (
-              <input
-                className="input"
-                placeholder="Bearer token"
-                value={draft.authConfig?.token ?? ""}
-                onChange={(event) =>
-                  updateActiveDraft({
-                    authConfig: {
-                      ...(draft.authConfig ?? {}),
-                      token: event.target.value,
-                    },
-                  })
-                }
-              />
+              <label className="request-editor__field request-editor__field--wide">
+                <span>Token</span>
+                <input
+                  className="input input--dense"
+                  placeholder="Bearer token"
+                  value={draft.authConfig?.token ?? ""}
+                  onChange={(event) =>
+                    updateActiveDraft({
+                      authConfig: {
+                        ...(draft.authConfig ?? {}),
+                        token: event.target.value,
+                      },
+                    })
+                  }
+                />
+              </label>
             ) : null}
           </div>
         ) : null}
 
         {activeTab.activeEditorTab === "cookies" ? (
           <div className="request-editor__hint">
-            Matching cookies are managed automatically on the backend and will be attached when this request is sent.
+            Matching cookies are attached automatically by the backend cookie jar when this
+            request runs.
           </div>
         ) : null}
 
         {activeTab.activeEditorTab === "scripts" ? (
           <div className="scripts-editor">
-            <div>
+            <div className="scripts-editor__panel">
               <div className="scripts-editor__label">Pre-request script</div>
               <CodeEditor
-                height={180}
+                height={190}
                 language="javascript"
                 value={draft.preRequestScript}
                 onChange={(preRequestScript) => updateActiveDraft({ preRequestScript })}
               />
             </div>
-            <div>
+            <div className="scripts-editor__panel">
               <div className="scripts-editor__label">Post-response script</div>
               <CodeEditor
-                height={180}
+                height={190}
                 language="javascript"
                 value={draft.postResponseScript}
                 onChange={(postResponseScript) => updateActiveDraft({ postResponseScript })}
@@ -329,7 +515,7 @@ export function RequestEditor() {
             </div>
           </div>
         ) : null}
-      </SectionCard>
-    </div>
+      </div>
+    </section>
   );
 }

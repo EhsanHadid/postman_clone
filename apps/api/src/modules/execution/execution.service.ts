@@ -1,6 +1,8 @@
 import {
+  BadGatewayException,
   BadRequestException,
   Injectable,
+  NotFoundException,
 } from "@nestjs/common";
 import {
   AuthType,
@@ -77,7 +79,7 @@ export class ExecutionService {
 
     const mutableRequest = {
       url: this.buildUrl(interpolatedRequest.url, interpolatedRequest.queryParams),
-      method: interpolatedRequest.protocolType === "trpc" ? "POST" : interpolatedRequest.method,
+      method: interpolatedRequest.method,
       headers: mutableHeaders,
       body: interpolatedRequest.body,
     };
@@ -96,17 +98,17 @@ export class ExecutionService {
     }
 
     const startedAt = Date.now();
-    const response = await this.performFetch(interpolatedRequest, mutableRequest);
+    const fetchResult = await this.performFetch(interpolatedRequest, mutableRequest);
     const durationMs = Date.now() - startedAt;
-    const responseHeaders = this.readHeaders(response.headers);
-    const responseBody = await response.text();
+    const responseHeaders = this.readHeaders(fetchResult.response.headers);
+    const responseBody = await fetchResult.response.text();
     const parsedBody = safeJsonParse<unknown>(responseBody, null);
-    const setCookieHeaders = this.extractSetCookieHeaders(response.headers);
+    const setCookieHeaders = this.extractSetCookieHeaders(fetchResult.response.headers);
 
     if (setCookieHeaders.length) {
       await this.cookiesService.absorbResponseCookies(
         userId,
-        mutableRequest.url,
+        fetchResult.resolvedUrl,
         setCookieHeaders,
       );
     }
@@ -116,7 +118,7 @@ export class ExecutionService {
       request: mutableRequest,
       envVariables: environmentVariables,
       response: {
-        status: response.status,
+        status: fetchResult.response.status,
         headers: responseHeaders,
         text: () => responseBody,
         json: () => parsedBody,
@@ -133,32 +135,40 @@ export class ExecutionService {
       requestId: dto.requestId ?? mergedRequest.id ?? null,
       protocolType: interpolatedRequest.protocolType,
       method: mutableRequest.method as HttpMethod,
-      url: mutableRequest.url,
+      url: fetchResult.resolvedUrl,
       requestHeaders: mutableRequest.headers,
       requestBody: mutableRequest.body,
-      responseStatus: response.status,
+      responseStatus: fetchResult.response.status,
       responseHeaders,
       responseBody,
       durationMs,
     });
 
     return {
-      status: response.status,
-      statusText: response.statusText,
+      status: fetchResult.response.status,
+      statusText: fetchResult.response.statusText,
       durationMs,
       headers: responseHeaders,
       body: responseBody,
       parsedBody,
-      cookies: setCookieHeaders.map((header) => this.previewCookie(header, mutableRequest.url)),
-      resolvedUrl: mutableRequest.url,
+      cookies: setCookieHeaders.map((header) => this.previewCookie(header, fetchResult.resolvedUrl)),
+      resolvedUrl: fetchResult.resolvedUrl,
       requestHeaders: mutableRequest.headers,
     };
   }
 
   private async resolveRequest(userId: string, dto: ExecuteRequestDto): Promise<ResolvedRequest> {
-    const savedRequest = dto.requestId
-      ? await this.requestsService.findOwned(userId, dto.requestId)
-      : null;
+    let savedRequest = null;
+
+    if (dto.requestId) {
+      try {
+        savedRequest = await this.requestsService.findOwned(userId, dto.requestId);
+      } catch (error) {
+        if (!(error instanceof NotFoundException)) {
+          throw error;
+        }
+      }
+    }
 
     const source = dto.request;
 
@@ -292,35 +302,70 @@ export class ExecutionService {
       headers: Record<string, string>;
       body: string;
     },
-  ): Promise<Response> {
+  ): Promise<{ response: Response; resolvedUrl: string }> {
     if (!mutableRequest.url) {
       throw new BadRequestException("Request URL is required.");
     }
 
+    let resolvedUrl = mutableRequest.url;
+    let transportUrl = this.resolveTransportUrl(mutableRequest.url);
+
     if (request.protocolType === "trpc") {
-      mutableRequest.url = this.trpcService.resolveUrl(
-        mutableRequest.url,
+      if (mutableRequest.method !== "GET" && mutableRequest.method !== "POST") {
+        throw new BadRequestException(
+          "tRPC requests in this client support GET for queries and POST for mutations.",
+        );
+      }
+
+      resolvedUrl = this.trpcService.resolveUrl(resolvedUrl, request.trpcProcedurePath ?? "");
+      transportUrl = this.trpcService.resolveUrl(
+        transportUrl,
         request.trpcProcedurePath ?? "",
       );
-      mutableRequest.headers["content-type"] = "application/json";
-      mutableRequest.body = this.trpcService.createBody(mutableRequest.body || "{}");
+
+      if (mutableRequest.method === "GET") {
+        resolvedUrl = this.trpcService.appendInputParam(resolvedUrl, mutableRequest.body || "{}");
+        transportUrl = this.trpcService.appendInputParam(
+          transportUrl,
+          mutableRequest.body || "{}",
+        );
+        delete mutableRequest.headers["content-type"];
+      } else {
+        mutableRequest.headers["content-type"] = "application/json";
+        mutableRequest.body = this.trpcService.createBody(mutableRequest.body || "{}");
+      }
     }
 
     const body = await this.buildRequestBody(
-      request.bodyType,
+      request.protocolType === "trpc"
+        ? mutableRequest.method === "POST"
+          ? "json"
+          : "none"
+        : request.bodyType,
       mutableRequest.body,
       request.formData,
       mutableRequest.headers,
     );
 
-    return fetch(mutableRequest.url, {
-      method: mutableRequest.method,
-      headers: mutableRequest.headers,
-      body:
-        mutableRequest.method === "GET" || mutableRequest.method === "DELETE"
-          ? undefined
-          : (body as never),
-    });
+    try {
+      const response = await fetch(transportUrl, {
+        method: mutableRequest.method,
+        headers: mutableRequest.headers,
+        body:
+          mutableRequest.method === "GET" || mutableRequest.method === "DELETE"
+            ? undefined
+            : (body as never),
+      });
+
+      return {
+        response,
+        resolvedUrl,
+      };
+    } catch (error) {
+      throw new BadGatewayException(
+        this.formatFetchErrorMessage(resolvedUrl, transportUrl, error),
+      );
+    }
   }
 
   private async buildRequestBody(
@@ -429,5 +474,70 @@ export class ExecutionService {
       domain: domainPart?.split("=")[1] ?? url.hostname,
       path: pathPart?.split("=")[1] ?? "/",
     };
+  }
+
+  private resolveTransportUrl(rawUrl: string): string {
+    const dockerLocalhostAlias = process.env.DOCKER_LOCALHOST_ALIAS?.trim();
+
+    if (!dockerLocalhostAlias) {
+      return rawUrl;
+    }
+
+    try {
+      const url = new URL(rawUrl);
+
+      if (!this.isLoopbackHostname(url.hostname)) {
+        return rawUrl;
+      }
+
+      url.hostname = dockerLocalhostAlias;
+      return url.toString();
+    } catch {
+      return rawUrl;
+    }
+  }
+
+  private isLoopbackHostname(hostname: string): boolean {
+    return (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname === "[::1]"
+    );
+  }
+
+  private formatFetchErrorMessage(
+    requestedUrl: string,
+    transportUrl: string,
+    error: unknown,
+  ): string {
+    const causeMessage = this.getErrorMessage(error);
+
+    if (requestedUrl !== transportUrl) {
+      return `Unable to reach ${requestedUrl}. The API executor is running in Docker, so localhost was mapped to ${transportUrl}. ${causeMessage}`;
+    }
+
+    return `Unable to reach ${requestedUrl}. ${causeMessage}`;
+  }
+
+  private getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      const cause = error as Error & {
+        cause?: unknown;
+      };
+
+      if (
+        cause.cause &&
+        typeof cause.cause === "object" &&
+        "message" in cause.cause &&
+        typeof cause.cause.message === "string"
+      ) {
+        return cause.cause.message;
+      }
+
+      return error.message;
+    }
+
+    return "Unknown network error.";
   }
 }

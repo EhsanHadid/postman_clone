@@ -1,15 +1,22 @@
 import { useRef } from "react";
+import { DownloadIcon, RestoreIcon, UploadIcon } from "../../components/AppIcons";
 import { api, downloadJson } from "../../services/api";
 import { useCollectionsStore } from "../../store/collectionsStore";
 import { useCookiesStore } from "../../store/cookiesStore";
 import { useEnvironmentsStore } from "../../store/environmentsStore";
 import { useHistoryStore } from "../../store/historyStore";
 
+interface ImportExportControlsProps {
+  variant?: "menu" | "toolbar";
+}
+
 async function readJsonFile(file: File): Promise<unknown> {
   return JSON.parse(await file.text());
 }
 
-export function ImportExportControls() {
+export function ImportExportControls({
+  variant = "toolbar",
+}: ImportExportControlsProps) {
   const postmanInputRef = useRef<HTMLInputElement | null>(null);
   const backupInputRef = useRef<HTMLInputElement | null>(null);
   const fetchCollections = useCollectionsStore((state) => state.fetchCollections);
@@ -52,15 +59,33 @@ export function ImportExportControls() {
   };
 
   return (
-    <div className="topbar__actions">
-      <button className="button button-subtle" onClick={() => postmanInputRef.current?.click()} type="button">
-        Import Postman
+    <div className={variant === "menu" ? "menu-actions" : "chrome-actions"}>
+      <button
+        className={variant === "menu" ? "menu-action" : "icon-button"}
+        onClick={() => postmanInputRef.current?.click()}
+        title="Import Postman collection"
+        type="button"
+      >
+        <UploadIcon />
+        <span>Import Postman</span>
       </button>
-      <button className="button button-subtle" onClick={exportBackup} type="button">
-        Export Backup
+      <button
+        className={variant === "menu" ? "menu-action" : "icon-button"}
+        onClick={exportBackup}
+        title="Export backup"
+        type="button"
+      >
+        <DownloadIcon />
+        <span>Export backup</span>
       </button>
-      <button className="button button-subtle" onClick={() => backupInputRef.current?.click()} type="button">
-        Restore Backup
+      <button
+        className={variant === "menu" ? "menu-action" : "icon-button"}
+        onClick={() => backupInputRef.current?.click()}
+        title="Restore backup"
+        type="button"
+      >
+        <RestoreIcon />
+        <span>Restore backup</span>
       </button>
 
       <input

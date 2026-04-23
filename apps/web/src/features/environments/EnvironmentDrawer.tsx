@@ -1,5 +1,6 @@
 import { api } from "../../services/api";
 import { Drawer } from "../../components/Drawer";
+import { useDialogStore } from "../../store/dialogStore";
 import { useEnvironmentsStore } from "../../store/environmentsStore";
 import { useLayoutStore } from "../../store/layoutStore";
 
@@ -10,31 +11,39 @@ export function EnvironmentDrawer() {
   const activeEnvironmentId = useEnvironmentsStore((state) => state.activeEnvironmentId);
   const setActiveEnvironment = useEnvironmentsStore((state) => state.setActiveEnvironment);
   const fetchEnvironments = useEnvironmentsStore((state) => state.fetchEnvironments);
+  const openTextDialog = useDialogStore((state) => state.openTextDialog);
+  const openKeyValueDialog = useDialogStore((state) => state.openKeyValueDialog);
 
   const createEnvironment = async () => {
-    const name = window.prompt("Environment name");
-    if (!name) {
-      return;
-    }
-
-    await api.environments.create({ name });
-    await fetchEnvironments();
+    openTextDialog({
+      title: "New Environment",
+      description: "Create an environment for API variables and tokens.",
+      label: "Environment name",
+      initialValue: "New Environment",
+      submitLabel: "Create Environment",
+      onSubmit: async (name) => {
+        await api.environments.create({ name });
+        await fetchEnvironments();
+      },
+    });
   };
 
   const addVariable = async (environmentId: string) => {
-    const key = window.prompt("Variable key");
-    const value = window.prompt("Variable value");
-
-    if (!key || value === null) {
-      return;
-    }
-
-    await api.environments.addVariable(environmentId, {
-      key,
-      value,
-      enabled: true,
+    openKeyValueDialog({
+      title: "Add Variable",
+      description: "Add a key-value pair to this environment.",
+      keyPlaceholder: "base_url",
+      valuePlaceholder: "https://api.example.com",
+      submitLabel: "Add Variable",
+      onSubmit: async ({ key, value }) => {
+        await api.environments.addVariable(environmentId, {
+          key,
+          value,
+          enabled: true,
+        });
+        await fetchEnvironments();
+      },
     });
-    await fetchEnvironments();
   };
 
   const editVariable = async (
@@ -42,15 +51,17 @@ export function EnvironmentDrawer() {
     currentKey: string,
     currentValue: string,
   ) => {
-    const key = window.prompt("Variable key", currentKey);
-    const value = window.prompt("Variable value", currentValue);
-
-    if (!key || value === null) {
-      return;
-    }
-
-    await api.environments.updateVariable(variableId, { key, value, enabled: true });
-    await fetchEnvironments();
+    openKeyValueDialog({
+      title: "Edit Variable",
+      description: "Update this environment variable.",
+      initialKey: currentKey,
+      initialValue: currentValue,
+      submitLabel: "Save Variable",
+      onSubmit: async ({ key, value }) => {
+        await api.environments.updateVariable(variableId, { key, value, enabled: true });
+        await fetchEnvironments();
+      },
+    });
   };
 
   return (

@@ -32,8 +32,11 @@ services:
       DB_USER: root
       DB_PASSWORD: root
       DB_SYNCHRONIZE: "false"
+      DOCKER_LOCALHOST_ALIAS: host.docker.internal
     ports:
       - "4000:4000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   web:
     build:

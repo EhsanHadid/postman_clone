@@ -13,3 +13,5 @@ coverage
 apps/web/dist
 apps/api/dist
 apps/api/.data
+.github
+

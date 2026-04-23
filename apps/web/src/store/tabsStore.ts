@@ -40,6 +40,7 @@ interface TabsState {
   setActiveTab: (tabId: string) => void;
   updateActiveDraft: (patch: Partial<RequestDefinition>) => void;
   setActiveEditorTab: (tab: EditorTabKey) => void;
+  setSending: (tabId: string, isSending: boolean) => void;
   setResponse: (tabId: string, response: ExecutionResponsePayload) => void;
   markSaved: (tabId: string, request: RequestDefinition) => void;
 }
@@ -65,6 +66,7 @@ export const useTabsStore = create<TabsState>()(
               requestId: request.id,
               title: request.name,
               isDirty: false,
+              isSending: false,
               activeEditorTab: "params",
               draft: request,
               response: null,
@@ -83,6 +85,7 @@ export const useTabsStore = create<TabsState>()(
               requestId: null,
               title: "New Request",
               isDirty: true,
+              isSending: false,
               activeEditorTab: "params",
               draft: createDefaultRequest(collectionId, folderId),
               response: null,
@@ -123,6 +126,10 @@ export const useTabsStore = create<TabsState>()(
             tab.id === state.activeTabId ? { ...tab, activeEditorTab } : tab,
           ),
         })),
+      setSending: (tabId, isSending) =>
+        set((state) => ({
+          tabs: state.tabs.map((tab) => (tab.id === tabId ? { ...tab, isSending } : tab)),
+        })),
       setResponse: (tabId, response) =>
         set((state) => ({
           tabs: state.tabs.map((tab) => (tab.id === tabId ? { ...tab, response } : tab)),
@@ -136,6 +143,7 @@ export const useTabsStore = create<TabsState>()(
                   requestId: request.id,
                   title: request.name,
                   isDirty: false,
+                  isSending: false,
                   draft: request,
                 }
               : tab,
@@ -145,7 +153,7 @@ export const useTabsStore = create<TabsState>()(
     {
       name: "postman-clone-tabs",
       partialize: (state) => ({
-        tabs: state.tabs,
+        tabs: state.tabs.map((tab) => ({ ...tab, isSending: false })),
         activeTabId: state.activeTabId,
       }),
     },

@@ -9,7 +9,7 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "sourceMap": true,
-    "incremental": true,
+    "incremental": false,
     "useDefineForClassFields": false
   },
   "include": ["src/**/*"]

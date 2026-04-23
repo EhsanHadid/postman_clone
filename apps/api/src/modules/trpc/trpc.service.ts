@@ -17,4 +17,10 @@ export class TrpcService {
     const parsed = safeJsonParse<unknown>(body || "{}", {});
     return JSON.stringify(parsed);
   }
+
+  appendInputParam(urlValue: string, body: string): string {
+    const url = new URL(urlValue);
+    url.searchParams.set("input", this.createBody(body));
+    return url.toString();
+  }
 }

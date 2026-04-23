@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "node -e \"require('fs').rmSync('dist',{ recursive: true, force: true })\" && nest build",
-    "start": "node dist/main.js",
-    "start:dev": "nest start --watch",
-    "start:prod": "node dist/main.js",
+    "build": "nest build",
+    "start": "node scripts/run-compiled.mjs main",
+    "start:dev": "node --watch --require ts-node/register/transpile-only --require tsconfig-paths/register src/main.ts",
+    "start:prod": "node scripts/run-compiled.mjs main",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "seed": "ts-node -r tsconfig-paths/register src/database/seed.ts",
     "db:migrate": "ts-node -r tsconfig-paths/register src/database/migrate.ts",
-    "db:migrate:compiled": "node dist/database/migrate.js"
+    "db:migrate:compiled": "node scripts/run-compiled.mjs migrate"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.17",
