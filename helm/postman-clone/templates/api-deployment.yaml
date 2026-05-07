@@ -1,0 +1,120 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "postman-clone.api.fullname" . }}
+  namespace: {{ include "postman-clone.namespace" . }}
+  labels:
+    {{- include "postman-clone.labels" . | nindent 4 }}
+    {{- include "postman-clone.api.selectorLabels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if not .Values.api.autoscaling.enabled }}
+  replicas: {{ .Values.api.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "postman-clone.api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/api-configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/api-secret.yaml") . | sha256sum }}
+        {{- with .Values.api.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "postman-clone.api.selectorLabels" . | nindent 8 }}
+        {{- with .Values.api.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "postman-clone.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "postman-clone.api.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.api.podSecurityContext | nindent 8 }}
+      {{- if .Values.api.migrations.enabled }}
+      initContainers:
+        - name: migrations
+          image: {{ include "postman-clone.api.image" . }}
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              MIGRATE_PATH='apps/api/dist/database/migrate.js'
+              SEED_PATH='apps/api/dist/database/seed.js'
+              if [ ! -f "$MIGRATE_PATH" ]; then
+                MIGRATE_PATH='apps/api/dist/apps/api/src/database/migrate.js'
+              fi
+              if [ ! -f "$SEED_PATH" ]; then
+                SEED_PATH='apps/api/dist/apps/api/src/database/seed.js'
+              fi
+              node "$MIGRATE_PATH" && node "$SEED_PATH"
+          envFrom:
+            - configMapRef:
+                name: {{ include "postman-clone.api.fullname" . }}-env
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postman-clone.api.secretName" . }}
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postman-clone.api.secretName" . }}
+                  key: DB_PASSWORD
+          securityContext:
+            {{- toYaml .Values.api.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+      {{- end }}
+      containers:
+        - name: api
+          image: {{ include "postman-clone.api.image" . }}
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.env.PORT | int }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "postman-clone.api.fullname" . }}-env
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postman-clone.api.secretName" . }}
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postman-clone.api.secretName" . }}
+                  key: DB_PASSWORD
+          {{- with .Values.api.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.api.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.api.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+      {{- with .Values.api.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

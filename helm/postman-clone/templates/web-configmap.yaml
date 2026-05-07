@@ -1,0 +1,36 @@
+{{- if .Values.web.nginxConfig }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postman-clone.web.fullname" . }}-nginx
+  namespace: {{ include "postman-clone.namespace" . }}
+  labels:
+    {{- include "postman-clone.labels" . | nindent 4 }}
+    {{- include "postman-clone.web.selectorLabels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  default.conf: |
+    server {
+      listen 80;
+      server_name _;
+
+      root /usr/share/nginx/html;
+      index index.html;
+
+      location / {
+        try_files $uri $uri/ /index.html;
+      }
+
+      location /api/ {
+        proxy_pass http://{{ include "postman-clone.api.fullname" . }}:{{ .Values.api.service.port }}/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+      }
+    }
+{{- end }}

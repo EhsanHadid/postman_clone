@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "postman-clone.api.fullname" . }}
+  namespace: {{ include "postman-clone.namespace" . }}
+  labels:
+    {{- include "postman-clone.labels" . | nindent 4 }}
+    {{- include "postman-clone.api.selectorLabels" . | nindent 4 }}
+  {{- with merge (.Values.api.service.annotations | default dict) (.Values.commonAnnotations | default dict) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.api.service.type }}
+  ports:
+    - port: {{ .Values.api.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "postman-clone.api.selectorLabels" . | nindent 4 }}

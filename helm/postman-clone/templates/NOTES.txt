@@ -1,0 +1,44 @@
+1. Postman Clone has been deployed!
+
+{{- if .Values.ingress.enabled }}
+
+Access the application at:
+{{- range .Values.ingress.hosts }}
+  {{- range .paths }}
+  {{- if eq .service "web" }}
+  https://{{ (index $.Values.ingress.hosts 0).host }}{{ .path }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+
+{{- else }}
+
+Get the application URL by running these commands:
+
+  # Web UI
+  kubectl port-forward svc/{{ include "postman-clone.web.fullname" . }} 8080:{{ .Values.web.service.port }} -n {{ include "postman-clone.namespace" . }}
+  # Then open http://localhost:8080
+
+  # API (optional)
+  kubectl port-forward svc/{{ include "postman-clone.api.fullname" . }} 4000:{{ .Values.api.service.port }} -n {{ include "postman-clone.namespace" . }}
+  # Then open http://localhost:4000/api
+
+{{- end }}
+
+{{- if and .Values.mysql.enabled (not .Values.mysql.auth.rootPassword) }}
+
+⚠️  WARNING: mysql.auth.rootPassword is empty!
+   Set a strong password for production:
+     --set mysql.auth.rootPassword=<YOUR_PASSWORD>
+{{- end }}
+
+{{- if and (not .Values.api.secrets.existingSecret) (not .Values.api.secrets.dbPassword) }}
+
+⚠️  WARNING: api.secrets.dbPassword is empty!
+   Set the database password:
+     --set api.secrets.dbPassword=<YOUR_PASSWORD>
+{{- end }}
+
+Demo credentials (after seeding):
+  Username: demo
+  Password: demo123

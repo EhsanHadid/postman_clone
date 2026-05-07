@@ -1,0 +1,101 @@
+# =============================================================================
+# Production overrides — apply with:
+#   helm install postman-clone ./helm/postman-clone -f helm/postman-clone/values-production.yaml
+# =============================================================================
+
+api:
+  replicaCount: 3
+
+  image:
+    registry: ghcr.io          # your container registry
+    repository: your-org/postman-clone-api
+    tag: "0.1.0"
+
+  env:
+    APP_ORIGIN: "https://postman-clone.your-domain.com"
+    DB_SYNCHRONIZE: "false"
+
+  secrets:
+    # Preferred: create a Secret externally (e.g. via Sealed Secrets, External Secrets)
+    # existingSecret: postman-clone-db-credentials
+    dbUser: postman
+    dbPassword: CHANGE_ME_IN_CI       # override via --set in CI/CD
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+web:
+  replicaCount: 3
+
+  image:
+    registry: ghcr.io
+    repository: your-org/postman-clone-web
+    tag: "0.1.0"
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 8
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts:
+    - host: postman-clone.your-domain.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: api
+        - path: /
+          pathType: Prefix
+          service: web
+  tls:
+    - secretName: postman-clone-tls
+      hosts:
+        - postman-clone.your-domain.com
+
+mysql:
+  enabled: true
+  auth:
+    rootPassword: CHANGE_ME_IN_CI     # override via --set in CI/CD
+    database: postman_clone
+    username: postman
+    password: CHANGE_ME_IN_CI         # override via --set in CI/CD
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: gp3               # adjust to your cloud provider
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+
+networkPolicy:
+  enabled: true

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "postman-clone.fullname" . }}-test-connection"
+  namespace: {{ include "postman-clone.namespace" . }}
+  labels:
+    {{- include "postman-clone.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  containers:
+    - name: test-web
+      image: busybox:1.36
+      command: ['sh', '-c']
+      args:
+        - |
+          echo "Testing web service..."
+          wget -qO- --timeout=10 http://{{ include "postman-clone.web.fullname" . }}:{{ .Values.web.service.port }}/ > /dev/null && echo "✅ Web service is reachable" || (echo "❌ Web service is not reachable" && exit 1)
+          echo "Testing API service..."
+          wget -qO- --timeout=10 http://{{ include "postman-clone.api.fullname" . }}:{{ .Values.api.service.port }}/api > /dev/null && echo "✅ API service is reachable" || (echo "❌ API service is not reachable" && exit 1)
+          echo "All tests passed!"

@@ -1,0 +1,290 @@
+# =============================================================================
+# Postman Clone – Helm values
+# =============================================================================
+# Override any value below in your own values-<env>.yaml or --set flags.
+
+# -- Global settings ----------------------------------------------------------
+global:
+  # Container image registry shared by all sub-charts / images
+  imageRegistry: ""
+  # Image pull secrets shared across all deployments
+  imagePullSecrets: []
+  #  - name: my-registry-secret
+
+# -- Common labels / annotations applied to every resource --------------------
+commonLabels: {}
+commonAnnotations: {}
+
+# -- Namespace override (defaults to Release.Namespace) -----------------------
+namespaceOverride: ""
+
+# =============================================================================
+# API (NestJS backend)
+# =============================================================================
+api:
+  replicaCount: 2
+
+  image:
+    registry: ""
+    repository: postman-clone/api
+    tag: ""          # defaults to .Chart.AppVersion
+    pullPolicy: IfNotPresent
+
+  # -- Environment variables for the API container ----------------------------
+  env:
+    PORT: "4000"
+    APP_ORIGIN: "https://postman-clone.example.com"
+    DB_PORT: "3306"
+    DB_NAME: postman_clone
+    DB_SYNCHRONIZE: "false"
+    SESSION_COOKIE_NAME: postman_clone_session
+    DOCKER_LOCALHOST_ALIAS: ""
+
+  # -- Sensitive values — reference a Secret or set directly ------------------
+  #    When existingSecret is set, DB_USER / DB_PASSWORD keys are read from it.
+  secrets:
+    existingSecret: ""          # name of a pre-existing K8s Secret
+    dbUser: root
+    dbPassword: ""              # leave blank when using existingSecret
+
+  service:
+    type: ClusterIP
+    port: 4000
+    annotations: {}
+
+  # -- Horizontal Pod Autoscaler ---------------------------------------------
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: 80
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  podAnnotations: {}
+  podLabels: {}
+
+  # -- Liveness / readiness probes -------------------------------------------
+  livenessProbe:
+    httpGet:
+      path: /api
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /api
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  # -- Pod Disruption Budget --------------------------------------------------
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+    # maxUnavailable: 1
+
+  # -- Service Account --------------------------------------------------------
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+
+  # -- Security context -------------------------------------------------------
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+
+  # -- Init container: run migrations before the API starts -------------------
+  migrations:
+    enabled: true
+
+# =============================================================================
+# Web (React + Vite, served via nginx)
+# =============================================================================
+web:
+  replicaCount: 2
+
+  image:
+    registry: ""
+    repository: postman-clone/web
+    tag: ""          # defaults to .Chart.AppVersion
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: 80
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  podAnnotations: {}
+  podLabels: {}
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101       # nginx user
+    fsGroup: 101
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false   # nginx needs /var/cache
+    capabilities:
+      drop: [ALL]
+
+  # -- Custom nginx config (mounted via ConfigMap) ----------------------------
+  #    Set to "" to use the default from the Docker image.
+  nginxConfig: |
+    server {
+      listen 80;
+      server_name _;
+
+      root /usr/share/nginx/html;
+      index index.html;
+
+      location / {
+        try_files $uri $uri/ /index.html;
+      }
+
+      location /api/ {
+        proxy_pass http://{{ include "postman-clone.api.fullname" . }}:{{ .Values.api.service.port }}/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+      }
+    }
+
+# =============================================================================
+# Ingress
+# =============================================================================
+ingress:
+  enabled: false
+  className: nginx              # e.g. nginx, traefik, alb
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts:
+    - host: postman-clone.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: web
+        - path: /api
+          pathType: Prefix
+          service: api
+  tls: []
+  #  - secretName: postman-clone-tls
+  #    hosts:
+  #      - postman-clone.example.com
+
+# =============================================================================
+# MySQL (Bitnami sub-chart)
+# =============================================================================
+mysql:
+  enabled: true
+  auth:
+    rootPassword: ""            # MUST override in production
+    database: postman_clone
+    username: postman
+    password: ""                # MUST override in production
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""          # leave blank for cluster default
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+  # -- External database (used when mysql.enabled = false) --------------------
+externalDatabase:
+  host: ""
+  port: 3306
+  database: postman_clone
+  user: postman
+  # existingSecret with key "mysql-password" or set password directly
+  existingSecret: ""
+  password: ""
+
+# =============================================================================
+# Network Policy
+# =============================================================================
+networkPolicy:
+  enabled: false
+  # When enabled, only web → api and api → mysql traffic is allowed.
+
+# =============================================================================
+# Extra manifests
+# =============================================================================
+# Provide any additional Kubernetes manifests to render alongside the chart.
+extraManifests: []
