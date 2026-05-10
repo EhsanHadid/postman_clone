@@ -67,6 +67,9 @@ spec:
                 secretKeyRef:
                   name: {{ include "postman-clone.api.secretName" . }}
                   key: DB_PASSWORD
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           securityContext:
             {{- toYaml .Values.api.containerSecurityContext | nindent 12 }}
           resources:
@@ -94,6 +97,9 @@ spec:
                 secretKeyRef:
                   name: {{ include "postman-clone.api.secretName" . }}
                   key: DB_PASSWORD
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           {{- with .Values.api.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}
@@ -106,6 +112,9 @@ spec:
             {{- toYaml .Values.api.containerSecurityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
       {{- with .Values.api.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

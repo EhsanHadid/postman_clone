@@ -1,6 +1,16 @@
 # =============================================================================
 # Production overrides — apply with:
-#   helm install postman-clone ./helm/postman-clone -f helm/postman-clone/values-production.yaml
+#   helm install postman-clone ./helm/postman-clone \
+#     -f helm/postman-clone/values-production.yaml \
+#     --set mysql.auth.rootPassword=$DB_ROOT_PW \
+#     --set mysql.auth.password=$DB_PW \
+#     --set api.secrets.dbPassword=$DB_PW
+#
+# Or better — use externally managed secrets:
+#   helm install postman-clone ./helm/postman-clone \
+#     -f helm/postman-clone/values-production.yaml \
+#     --set mysql.auth.existingSecret=my-mysql-secret \
+#     --set api.secrets.existingSecret=my-api-db-secret
 # =============================================================================
 
 api:
@@ -16,10 +26,11 @@ api:
     DB_SYNCHRONIZE: "false"
 
   secrets:
-    # Preferred: create a Secret externally (e.g. via Sealed Secrets, External Secrets)
-    # existingSecret: postman-clone-db-credentials
-    dbUser: postman
-    dbPassword: CHANGE_ME_IN_CI       # override via --set in CI/CD
+    # Recommended: reference a pre-existing K8s Secret managed by
+    # Sealed Secrets, External Secrets Operator, or your CI/CD pipeline.
+    existingSecret: postman-clone-db-credentials
+    # dbUser and dbPassword are ignored when existingSecret is set.
+    # The referenced Secret must contain keys: DB_USER, DB_PASSWORD.
 
   autoscaling:
     enabled: true
@@ -80,10 +91,12 @@ ingress:
 mysql:
   enabled: true
   auth:
-    rootPassword: CHANGE_ME_IN_CI     # override via --set in CI/CD
+    # Passwords must be supplied via --set or existingSecret.
+    # Do NOT commit passwords to version control.
+    rootPassword: ""
     database: postman_clone
     username: postman
-    password: CHANGE_ME_IN_CI         # override via --set in CI/CD
+    password: ""
   primary:
     persistence:
       enabled: true

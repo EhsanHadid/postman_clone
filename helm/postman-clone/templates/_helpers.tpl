@@ -47,6 +47,8 @@ Common labels.
 */}}
 {{- define "postman-clone.labels" -}}
 helm.sh/chart: {{ include "postman-clone.chart" . }}
+app.kubernetes.io/name: {{ include "postman-clone.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- if .Values.commonLabels }}

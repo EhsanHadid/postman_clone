@@ -44,7 +44,7 @@ api:
   #    When existingSecret is set, DB_USER / DB_PASSWORD keys are read from it.
   secrets:
     existingSecret: ""          # name of a pre-existing K8s Secret
-    dbUser: root
+    dbUser: postman             # matches mysql.auth.username
     dbPassword: ""              # leave blank when using existingSecret
 
   service:
@@ -78,7 +78,7 @@ api:
   # -- Liveness / readiness probes -------------------------------------------
   livenessProbe:
     httpGet:
-      path: /api
+      path: /api/health
       port: http
     initialDelaySeconds: 30
     periodSeconds: 15
@@ -86,7 +86,7 @@ api:
     failureThreshold: 3
   readinessProbe:
     httpGet:
-      path: /api
+      path: /api/health
       port: http
     initialDelaySeconds: 10
     periodSeconds: 10
@@ -196,6 +196,7 @@ web:
       drop: [ALL]
 
   # -- Custom nginx config (mounted via ConfigMap) ----------------------------
+  #    Supports Helm template syntax (processed via tpl).
   #    Set to "" to use the default from the Docker image.
   nginxConfig: |
     server {
@@ -232,12 +233,12 @@ ingress:
   hosts:
     - host: postman-clone.example.com
       paths:
-        - path: /
-          pathType: Prefix
-          service: web
         - path: /api
           pathType: Prefix
           service: api
+        - path: /
+          pathType: Prefix
+          service: web
   tls: []
   #  - secretName: postman-clone-tls
   #    hosts:

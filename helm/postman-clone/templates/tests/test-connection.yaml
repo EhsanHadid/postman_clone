@@ -11,13 +11,13 @@ metadata:
 spec:
   restartPolicy: Never
   containers:
-    - name: test-web
+    - name: test-connection
       image: busybox:1.36
       command: ['sh', '-c']
       args:
         - |
           echo "Testing web service..."
-          wget -qO- --timeout=10 http://{{ include "postman-clone.web.fullname" . }}:{{ .Values.web.service.port }}/ > /dev/null && echo "✅ Web service is reachable" || (echo "❌ Web service is not reachable" && exit 1)
-          echo "Testing API service..."
-          wget -qO- --timeout=10 http://{{ include "postman-clone.api.fullname" . }}:{{ .Values.api.service.port }}/api > /dev/null && echo "✅ API service is reachable" || (echo "❌ API service is not reachable" && exit 1)
+          wget --spider --timeout=10 http://{{ include "postman-clone.web.fullname" . }}:{{ .Values.web.service.port }}/ && echo "✅ Web service is reachable" || (echo "❌ Web service is not reachable" && exit 1)
+          echo "Testing API health endpoint..."
+          wget -qO- --timeout=10 http://{{ include "postman-clone.api.fullname" . }}:{{ .Values.api.service.port }}/api/health && echo "" && echo "✅ API service is reachable" || (echo "❌ API service is not reachable" && exit 1)
           echo "All tests passed!"

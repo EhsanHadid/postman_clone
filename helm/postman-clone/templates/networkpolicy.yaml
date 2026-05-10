@@ -66,8 +66,7 @@ spec:
         - port: {{ include "postman-clone.databasePort" . | int }}
           protocol: TCP
     # Allow DNS resolution
-    - to: []
-      ports:
+    - ports:
         - port: 53
           protocol: UDP
         - port: 53
