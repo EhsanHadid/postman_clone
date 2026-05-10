@@ -191,7 +191,7 @@ web:
     fsGroup: 101
   containerSecurityContext:
     allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: false   # nginx needs /var/cache
+    readOnlyRootFilesystem: true   # with emptyDir volumes mounted at /tmp, /var/cache/nginx, /var/run
     capabilities:
       drop: [ALL]
 
@@ -200,7 +200,7 @@ web:
   #    Set to "" to use the default from the Docker image.
   nginxConfig: |
     server {
-      listen 80;
+      listen 8080;
       server_name _;
 
       root /usr/share/nginx/html;

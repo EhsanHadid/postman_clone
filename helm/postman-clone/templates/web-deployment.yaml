@@ -42,15 +42,21 @@ spec:
           imagePullPolicy: {{ .Values.web.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 8080
               protocol: TCP
-          {{- if .Values.web.nginxConfig }}
           volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
+            {{- if .Values.web.nginxConfig }}
             - name: nginx-config
               mountPath: /etc/nginx/conf.d/default.conf
               subPath: default.conf
               readOnly: true
-          {{- end }}
+            {{- end }}
           {{- with .Values.web.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}
@@ -63,12 +69,18 @@ spec:
             {{- toYaml .Values.web.containerSecurityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.web.resources | nindent 12 }}
-      {{- if .Values.web.nginxConfig }}
       volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        {{- if .Values.web.nginxConfig }}
         - name: nginx-config
           configMap:
             name: {{ include "postman-clone.web.fullname" . }}-nginx
-      {{- end }}
+        {{- end }}
       {{- with .Values.web.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
