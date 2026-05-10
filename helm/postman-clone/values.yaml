@@ -26,8 +26,8 @@ api:
 
   image:
     registry: ""
-    repository: postman-clone/api
-    tag: ""          # defaults to .Chart.AppVersion
+    repository: postmanclone/api
+    tag: "latest"          # defaults to .Chart.AppVersion
     pullPolicy: IfNotPresent
 
   # -- Environment variables for the API container ----------------------------
@@ -128,8 +128,8 @@ web:
 
   image:
     registry: ""
-    repository: postman-clone/web
-    tag: ""          # defaults to .Chart.AppVersion
+    repository: postmanclone/web
+    tag: "latest"          # defaults to .Chart.AppVersion
     pullPolicy: IfNotPresent
 
   service:
