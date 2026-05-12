@@ -8,6 +8,8 @@ import {
   EnvironmentEntity,
   EnvironmentVariableEntity,
 } from "../../database/entities";
+import { WorkspacePermissionsService } from "../workspaces/workspace-permissions.service";
+import { WorkspacesService } from "../workspaces/workspaces.service";
 import {
   CreateEnvironmentDto,
   CreateEnvironmentVariableDto,
@@ -94,13 +96,21 @@ export class EnvironmentsService {
     private readonly environmentRepository: Repository<EnvironmentEntity>,
     @InjectRepository(EnvironmentVariableEntity)
     private readonly variableRepository: Repository<EnvironmentVariableEntity>,
+    private readonly permissions: WorkspacePermissionsService,
+    private readonly workspacesService: WorkspacesService,
   ) {}
 
-  async list(userId: string) {
-    await this.ensureStarterEnvironments(userId);
+  async listForDefaultWorkspace(userId: string) {
+    const workspaceId = await this.workspacesService.ensureDefaultWorkspace(userId);
+    return this.list(userId, workspaceId);
+  }
+
+  async list(userId: string, workspaceId: string) {
+    await this.permissions.requireMember(userId, workspaceId);
+    await this.ensureStarterEnvironments(userId, workspaceId);
 
     return this.environmentRepository.find({
-      where: { userId },
+      where: { workspaceId },
       relations: { variables: true },
       order: {
         isGlobal: "DESC",
@@ -109,10 +119,24 @@ export class EnvironmentsService {
     });
   }
 
-  async create(userId: string, dto: CreateEnvironmentDto): Promise<EnvironmentEntity> {
+  async createInDefaultWorkspace(
+    userId: string,
+    dto: CreateEnvironmentDto,
+  ): Promise<EnvironmentEntity> {
+    const workspaceId = await this.workspacesService.ensureDefaultWorkspace(userId);
+    return this.create(userId, workspaceId, dto);
+  }
+
+  async create(
+    userId: string,
+    workspaceId: string,
+    dto: CreateEnvironmentDto,
+  ): Promise<EnvironmentEntity> {
+    await this.permissions.requireEnvironmentManage(userId, workspaceId);
+
     if (dto.isGlobal) {
       const currentGlobal = await this.environmentRepository.findOne({
-        where: { userId, isGlobal: true },
+        where: { workspaceId, isGlobal: true },
       });
 
       if (currentGlobal) {
@@ -124,6 +148,7 @@ export class EnvironmentsService {
     return this.environmentRepository.save(
       this.environmentRepository.create({
         userId,
+        workspaceId,
         name: dto.name,
         isGlobal: dto.isGlobal ?? false,
       }),
@@ -136,9 +161,10 @@ export class EnvironmentsService {
     dto: UpdateEnvironmentDto,
   ): Promise<EnvironmentEntity> {
     const environment = await this.findOwned(userId, environmentId);
+    await this.permissions.requireEnvironmentManage(userId, environment.workspaceId);
 
     if (dto.isGlobal) {
-      await this.unsetOtherGlobals(userId, environment.id);
+      await this.unsetOtherGlobals(environment.workspaceId, environment.id);
     }
 
     Object.assign(environment, {
@@ -151,6 +177,7 @@ export class EnvironmentsService {
 
   async delete(userId: string, environmentId: string): Promise<void> {
     const environment = await this.findOwned(userId, environmentId);
+    await this.permissions.requireEnvironmentManage(userId, environment.workspaceId);
     await this.environmentRepository.remove(environment);
   }
 
@@ -159,7 +186,8 @@ export class EnvironmentsService {
     environmentId: string,
     dto: CreateEnvironmentVariableDto,
   ): Promise<EnvironmentVariableEntity> {
-    await this.findOwned(userId, environmentId);
+    const environment = await this.findOwned(userId, environmentId);
+    await this.permissions.requireEnvironmentManage(userId, environment.workspaceId);
 
     return this.variableRepository.save(
       this.variableRepository.create({
@@ -178,6 +206,7 @@ export class EnvironmentsService {
     dto: UpdateEnvironmentVariableDto,
   ): Promise<EnvironmentVariableEntity> {
     const variable = await this.findVariableOwned(userId, variableId);
+    await this.permissions.requireEnvironmentManage(userId, variable.environment.workspaceId);
 
     Object.assign(variable, {
       key: dto.key ?? variable.key,
@@ -191,14 +220,16 @@ export class EnvironmentsService {
 
   async deleteVariable(userId: string, variableId: string): Promise<void> {
     const variable = await this.findVariableOwned(userId, variableId);
+    await this.permissions.requireEnvironmentManage(userId, variable.environment.workspaceId);
     await this.variableRepository.remove(variable);
   }
 
-  async ensureGlobalEnvironment(userId: string): Promise<EnvironmentEntity> {
-    await this.ensureStarterEnvironments(userId);
+  async ensureGlobalEnvironment(userId: string, workspaceId?: string): Promise<EnvironmentEntity> {
+    const resolvedWorkspaceId = workspaceId ?? await this.workspacesService.ensureDefaultWorkspace(userId);
+    await this.ensureStarterEnvironments(userId, resolvedWorkspaceId);
 
     const existing = await this.environmentRepository.findOne({
-      where: { userId, isGlobal: true },
+      where: { workspaceId: resolvedWorkspaceId, isGlobal: true },
       relations: { variables: true },
     });
 
@@ -209,6 +240,7 @@ export class EnvironmentsService {
     return this.environmentRepository.save(
       this.environmentRepository.create({
         userId,
+        workspaceId: resolvedWorkspaceId,
         name: "Global",
         isGlobal: true,
       }),
@@ -219,8 +251,9 @@ export class EnvironmentsService {
     userId: string,
     activeEnvironmentId?: string | null,
   ): Promise<Record<string, string>> {
+    const workspaceId = await this.workspacesService.ensureDefaultWorkspace(userId);
     const environments = await this.environmentRepository.find({
-      where: { userId },
+      where: { workspaceId },
       relations: { variables: true },
     });
 
@@ -247,7 +280,8 @@ export class EnvironmentsService {
       return;
     }
 
-    const globalEnvironment = await this.ensureGlobalEnvironment(userId);
+    const workspaceId = await this.workspacesService.ensureDefaultWorkspace(userId);
+    const globalEnvironment = await this.ensureGlobalEnvironment(userId, workspaceId);
     const targetEnvironment = activeEnvironmentId
       ? await this.findOwned(userId, activeEnvironmentId)
       : globalEnvironment;
@@ -282,11 +316,11 @@ export class EnvironmentsService {
 
   async findOwned(userId: string, environmentId: string): Promise<EnvironmentEntity> {
     const environment = await this.environmentRepository.findOne({
-      where: { id: environmentId, userId },
+      where: { id: environmentId },
       relations: { variables: true },
     });
 
-    if (!environment) {
+    if (!environment || !(await this.permissions.getRole(userId, environment.workspaceId))) {
       throw new NotFoundException("Environment not found.");
     }
 
@@ -302,7 +336,7 @@ export class EnvironmentsService {
       relations: { environment: true },
     });
 
-    if (!variable || variable.environment.userId !== userId) {
+    if (!variable || !(await this.permissions.getRole(userId, variable.environment.workspaceId))) {
       throw new NotFoundException("Environment variable not found.");
     }
 
@@ -323,9 +357,9 @@ export class EnvironmentsService {
     }, {});
   }
 
-  private async unsetOtherGlobals(userId: string, activeId: string): Promise<void> {
+  private async unsetOtherGlobals(workspaceId: string, activeId: string): Promise<void> {
     const globals = await this.environmentRepository.find({
-      where: { userId, isGlobal: true },
+      where: { workspaceId, isGlobal: true },
     });
 
     for (const environment of globals) {
@@ -336,9 +370,9 @@ export class EnvironmentsService {
     }
   }
 
-  private async ensureStarterEnvironments(userId: string): Promise<void> {
+  private async ensureStarterEnvironments(userId: string, workspaceId: string): Promise<void> {
     const environments = await this.environmentRepository.find({
-      where: { userId },
+      where: { workspaceId },
     });
     const normalizedNames = new Set(
       environments.map((environment) => environment.name.trim().toLowerCase()),
@@ -352,7 +386,7 @@ export class EnvironmentsService {
 
     if (!hasGlobal) {
       const starter = STARTER_ENVIRONMENTS[0];
-      await this.createStarterEnvironment(userId, starter.name, starter.isGlobal, starter.variables);
+      await this.createStarterEnvironment(userId, workspaceId, starter.name, starter.isGlobal, starter.variables);
       normalizedNames.add(starter.name.toLowerCase());
     }
 
@@ -361,6 +395,7 @@ export class EnvironmentsService {
         if (!normalizedNames.has(starter.name.toLowerCase())) {
           await this.createStarterEnvironment(
             userId,
+            workspaceId,
             starter.name,
             starter.isGlobal,
             starter.variables,
@@ -372,6 +407,7 @@ export class EnvironmentsService {
 
   private async createStarterEnvironment(
     userId: string,
+    workspaceId: string,
     name: string,
     isGlobal: boolean,
     variables: ReadonlyArray<{
@@ -383,6 +419,7 @@ export class EnvironmentsService {
     const environment = await this.environmentRepository.save(
       this.environmentRepository.create({
         userId,
+        workspaceId,
         name,
         isGlobal,
       }),

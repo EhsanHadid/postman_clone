@@ -7,6 +7,8 @@ import {
   FolderEntity,
   RequestEntity,
 } from "../../database/entities";
+import { WorkspacesService } from "../workspaces/workspaces.service";
+import { WorkspacePermissionsService } from "../workspaces/workspace-permissions.service";
 import { ImportPostmanDto } from "./dto/import-postman.dto";
 
 type PostmanAuth = {
@@ -24,9 +26,13 @@ export class ImportExportService {
     private readonly folderRepository: Repository<FolderEntity>,
     @InjectRepository(RequestEntity)
     private readonly requestRepository: Repository<RequestEntity>,
+    private readonly workspacesService: WorkspacesService,
+    private readonly permissions: WorkspacePermissionsService,
   ) {}
 
   async importPostman(userId: string, dto: ImportPostmanDto) {
+    const workspaceId = await this.workspacesService.ensureDefaultWorkspace(userId);
+    await this.permissions.requireCollectionWrite(userId, workspaceId);
     const warnings: string[] = [];
     const payload = dto.payload;
     const collectionName =
@@ -38,6 +44,7 @@ export class ImportExportService {
     const collection = await this.collectionRepository.save(
       this.collectionRepository.create({
         userId,
+        workspaceId,
         name: collectionName,
         description: "Imported from Postman",
         sortOrder: 0,

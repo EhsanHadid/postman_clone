@@ -6,6 +6,8 @@ import { EnvironmentEntity } from "./environment.entity";
 import { HistoryEntryEntity } from "./history-entry.entity";
 import { SessionEntity } from "./session.entity";
 import { BackupMetadataEntity } from "./backup-metadata.entity";
+import { WorkspaceEntity } from "./workspace.entity";
+import { WorkspaceMemberEntity } from "./workspace-member.entity";
 
 @Entity("users")
 export class UserEntity extends BaseEntity {
@@ -32,4 +34,16 @@ export class UserEntity extends BaseEntity {
 
   @OneToMany(() => BackupMetadataEntity, (backup) => backup.user)
   backups!: BackupMetadataEntity[];
+
+  @OneToMany(() => WorkspaceEntity, (workspace) => workspace.owner)
+  ownedWorkspaces!: WorkspaceEntity[];
+
+  @OneToMany(() => WorkspaceEntity, (workspace) => workspace.createdBy)
+  createdWorkspaces!: WorkspaceEntity[];
+
+  @OneToMany(() => WorkspaceMemberEntity, (member) => member.user)
+  workspaceMemberships!: WorkspaceMemberEntity[];
+
+  @OneToMany(() => WorkspaceMemberEntity, (member) => member.addedBy)
+  addedWorkspaceMembers!: WorkspaceMemberEntity[];
 }

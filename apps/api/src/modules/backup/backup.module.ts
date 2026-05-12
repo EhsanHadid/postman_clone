@@ -11,6 +11,7 @@ import {
   RequestEntity,
   RequestSnapshotEntity,
 } from "../../database/entities";
+import { WorkspacesModule } from "../workspaces/workspaces.module";
 import { BackupController } from "./backup.controller";
 import { BackupService } from "./backup.service";
 
@@ -27,6 +28,7 @@ import { BackupService } from "./backup.service";
       CookieEntity,
       HistoryEntryEntity,
     ]),
+    WorkspacesModule,
   ],
   controllers: [BackupController],
   providers: [BackupService],

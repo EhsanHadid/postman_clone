@@ -7,6 +7,8 @@ import { Repository } from "typeorm";
 import { CollectionEntity } from "../../database/entities/collection.entity";
 import { FolderEntity } from "../../database/entities/folder.entity";
 import { RequestEntity } from "../../database/entities/request.entity";
+import { WorkspacePermissionsService } from "../workspaces/workspace-permissions.service";
+import { WorkspacesService } from "../workspaces/workspaces.service";
 import { CreateCollectionDto, UpdateCollectionDto } from "./dto/collection.dto";
 
 @Injectable()
@@ -18,11 +20,20 @@ export class CollectionsService {
     private readonly folderRepository: Repository<FolderEntity>,
     @InjectRepository(RequestEntity)
     private readonly requestRepository: Repository<RequestEntity>,
+    private readonly permissions: WorkspacePermissionsService,
+    private readonly workspacesService: WorkspacesService,
   ) {}
 
-  async listTree(userId: string) {
+  async listTreeForDefaultWorkspace(userId: string) {
+    const workspaceId = await this.workspacesService.ensureDefaultWorkspace(userId);
+    return this.listTree(userId, workspaceId);
+  }
+
+  async listTree(userId: string, workspaceId: string) {
+    await this.permissions.requireCollectionRead(userId, workspaceId);
+
     const collections = await this.collectionRepository.find({
-      where: { userId },
+      where: { workspaceId },
       order: { sortOrder: "ASC", name: "ASC" },
     });
 
@@ -94,10 +105,25 @@ export class CollectionsService {
     }));
   }
 
-  async create(userId: string, dto: CreateCollectionDto): Promise<CollectionEntity> {
+  async createInDefaultWorkspace(
+    userId: string,
+    dto: CreateCollectionDto,
+  ): Promise<CollectionEntity> {
+    const workspaceId = await this.workspacesService.ensureDefaultWorkspace(userId);
+    return this.create(userId, workspaceId, dto);
+  }
+
+  async create(
+    userId: string,
+    workspaceId: string,
+    dto: CreateCollectionDto,
+  ): Promise<CollectionEntity> {
+    await this.permissions.requireCollectionWrite(userId, workspaceId);
+
     return this.collectionRepository.save(
       this.collectionRepository.create({
         userId,
+        workspaceId,
         name: dto.name,
         description: dto.description ?? "",
         sortOrder: dto.sortOrder ?? 0,
@@ -113,6 +139,7 @@ export class CollectionsService {
     dto: UpdateCollectionDto,
   ): Promise<CollectionEntity> {
     const collection = await this.findOwned(userId, collectionId);
+    await this.permissions.requireCollectionWrite(userId, collection.workspaceId);
 
     Object.assign(collection, {
       name: dto.name ?? collection.name,
@@ -127,15 +154,16 @@ export class CollectionsService {
 
   async delete(userId: string, collectionId: string): Promise<void> {
     const collection = await this.findOwned(userId, collectionId);
+    await this.permissions.requireCollectionWrite(userId, collection.workspaceId);
     await this.collectionRepository.remove(collection);
   }
 
   async findOwned(userId: string, collectionId: string): Promise<CollectionEntity> {
     const collection = await this.collectionRepository.findOne({
-      where: { id: collectionId, userId },
+      where: { id: collectionId },
     });
 
-    if (!collection) {
+    if (!collection || !(await this.permissions.getRole(userId, collection.workspaceId))) {
       throw new NotFoundException("Collection not found.");
     }
 

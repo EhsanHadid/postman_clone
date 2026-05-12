@@ -6,6 +6,8 @@ import {
   EnvironmentVariableEntity,
   RequestEntity,
   UserEntity,
+  WorkspaceEntity,
+  WorkspaceMemberEntity,
 } from "./entities";
 import { hashPassword } from "../modules/users/password.utils";
 
@@ -17,6 +19,8 @@ async function run(): Promise<void> {
   const environmentRepository = AppDataSource.getRepository(EnvironmentEntity);
   const variableRepository = AppDataSource.getRepository(EnvironmentVariableEntity);
   const requestRepository = AppDataSource.getRepository(RequestEntity);
+  const workspaceRepository = AppDataSource.getRepository(WorkspaceEntity);
+  const workspaceMemberRepository = AppDataSource.getRepository(WorkspaceMemberEntity);
 
   let user = await userRepository.findOne({ where: { username: "demo" } });
 
@@ -29,14 +33,45 @@ async function run(): Promise<void> {
     );
   }
 
+  let workspace = await workspaceRepository.findOne({
+    where: { ownerId: user.id, name: "demo's Workspace" },
+  });
+
+  if (!workspace) {
+    workspace = await workspaceRepository.save(
+      workspaceRepository.create({
+        name: "demo's Workspace",
+        description: "Default workspace for demo data",
+        ownerId: user.id,
+        createdById: user.id,
+      }),
+    );
+  }
+
+  const existingOwnerMembership = await workspaceMemberRepository.findOne({
+    where: { workspaceId: workspace.id, userId: user.id },
+  });
+
+  if (!existingOwnerMembership) {
+    await workspaceMemberRepository.save(
+      workspaceMemberRepository.create({
+        workspaceId: workspace.id,
+        userId: user.id,
+        role: "OWNER",
+        addedById: user.id,
+      }),
+    );
+  }
+
   const existingCollection = await collectionRepository.findOne({
-    where: { userId: user.id, name: "Demo APIs" },
+    where: { userId: user.id, workspaceId: workspace.id, name: "Demo APIs" },
   });
 
   if (!existingCollection) {
     const collection = await collectionRepository.save(
       collectionRepository.create({
         userId: user.id,
+        workspaceId: workspace.id,
         name: "Demo APIs",
         description: "Starter collection for Postman Clone",
         sortOrder: 100,
@@ -68,7 +103,7 @@ async function run(): Promise<void> {
   }
 
   const existingEnvironments = await environmentRepository.find({
-    where: { userId: user.id },
+    where: { userId: user.id, workspaceId: workspace.id },
   });
   const existingEnvironmentNames = new Set(
     existingEnvironments.map((environment) => environment.name.trim().toLowerCase()),
@@ -138,6 +173,7 @@ async function run(): Promise<void> {
     const environment = await environmentRepository.save(
       environmentRepository.create({
         userId: user.id,
+        workspaceId: workspace.id,
         name: starterEnvironment.name,
         isGlobal: starterEnvironment.isGlobal,
       }),

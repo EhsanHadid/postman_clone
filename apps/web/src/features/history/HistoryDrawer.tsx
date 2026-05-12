@@ -1,5 +1,6 @@
-import { api } from "../../services/api";
 import { Drawer } from "../../components/Drawer";
+import { api } from "../../services/api";
+import { localDesktop } from "../../services/localDesktop";
 import { useHistoryStore } from "../../store/historyStore";
 import { useLayoutStore } from "../../store/layoutStore";
 import { useTabsStore } from "../../store/tabsStore";
@@ -45,7 +46,7 @@ export function HistoryDrawer() {
               <button
                 className="button button-subtle"
                 onClick={async () => {
-                  await api.history.delete(entry.id);
+                  await localDesktop.history.delete(entry.id);
                   await fetchHistory();
                 }}
                 type="button"

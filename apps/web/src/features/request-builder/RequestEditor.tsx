@@ -10,8 +10,8 @@ import {
 import { CodeEditor } from "../../components/CodeEditor";
 import { KeyValueTable } from "../../components/KeyValueTable";
 import { api } from "../../services/api";
+import { localDesktop } from "../../services/localDesktop";
 import { useCollectionsStore } from "../../store/collectionsStore";
-import { useCookiesStore } from "../../store/cookiesStore";
 import { useDialogStore } from "../../store/dialogStore";
 import { useEnvironmentsStore } from "../../store/environmentsStore";
 import { useHistoryStore } from "../../store/historyStore";
@@ -152,10 +152,10 @@ export function RequestEditor() {
   const setResponse = useTabsStore((state) => state.setResponse);
   const markSaved = useTabsStore((state) => state.markSaved);
   const activeEnvironmentId = useEnvironmentsStore((state) => state.activeEnvironmentId);
+  const environments = useEnvironmentsStore((state) => state.environments);
+  const collections = useCollectionsStore((state) => state.collections);
   const fetchCollections = useCollectionsStore((state) => state.fetchCollections);
   const fetchHistory = useHistoryStore((state) => state.fetchHistory);
-  const fetchCookies = useCookiesStore((state) => state.fetchCookies);
-  const fetchEnvironments = useEnvironmentsStore((state) => state.fetchEnvironments);
   const openSaveLocationDialog = useDialogStore((state) => state.openSaveLocationDialog);
   const openNoticeDialog = useDialogStore((state) => state.openNoticeDialog);
   const activeDialog = useDialogStore((state) => state.dialog);
@@ -257,6 +257,11 @@ export function RequestEditor() {
       return;
     }
 
+    if (activeTab.isSending) {
+      await localDesktop.execution.cancel(activeTab.id);
+      return;
+    }
+
     const payload = {
       requestId: activeTab.requestId ?? undefined,
       activeEnvironmentId,
@@ -267,7 +272,11 @@ export function RequestEditor() {
     setActiveTabSending(activeTab.id, true);
 
     try {
-      const response = await api.execution.send(payload);
+      const response = await localDesktop.execution.send(payload, {
+        environments,
+        collections,
+        localRequestId: activeTab.id,
+      });
       const elapsedMs = Date.now() - startedAt;
 
       if (elapsedMs < 120) {
@@ -275,7 +284,7 @@ export function RequestEditor() {
       }
 
       setResponse(activeTab.id, response);
-      await Promise.all([fetchHistory(), fetchCookies(), fetchEnvironments()]);
+      await fetchHistory();
     } catch (error) {
       const elapsedMs = Date.now() - startedAt;
 
@@ -293,10 +302,10 @@ export function RequestEditor() {
   }, [
     activeEnvironmentId,
     activeTab,
+    collections,
     draft,
+    environments,
     fetchHistory,
-    fetchCookies,
-    fetchEnvironments,
     openNoticeDialog,
     setActiveTabSending,
     setResponse,
@@ -427,13 +436,12 @@ export function RequestEditor() {
           className={`button button-primary button--send ${
             activeTab.isSending ? "is-loading" : ""
           }`}
-          disabled={activeTab.isSending}
           onClick={() => void sendRequest()}
-          title="Send request (Ctrl+Enter)"
+          title={activeTab.isSending ? "Cancel request" : "Send request (Ctrl+Enter)"}
           type="button"
         >
           {activeTab.isSending ? <LoaderIcon className="spin" /> : null}
-          <span>{activeTab.isSending ? "Sending..." : "Send"}</span>
+          <span>{activeTab.isSending ? "Cancel" : "Send"}</span>
         </button>
       </div>
 
@@ -621,8 +629,7 @@ export function RequestEditor() {
 
         {activeTab.activeEditorTab === "cookies" ? (
           <div className="request-editor__hint">
-            Matching cookies are attached automatically by the backend cookie jar when this
-            request runs.
+            Desktop requests run locally. Add a Cookie header to send cookies with this request.
           </div>
         ) : null}
 

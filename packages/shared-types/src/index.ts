@@ -7,6 +7,7 @@ export type RequestBodyType =
   | "form-urlencoded"
   | "multipart-form-data";
 export type AuthType = "inherit" | "none" | "basic" | "bearer";
+export type WorkspaceRole = "OWNER" | "ADMIN" | "CONTRIBUTOR" | "READONLY";
 export type EditorTabKey =
   | "params"
   | "headers"
@@ -18,6 +19,35 @@ export type EditorTabKey =
 export interface UserProfile {
   id: string;
   username: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicUserProfile {
+  id: string;
+  username: string;
+  displayName?: string;
+  avatarUrl?: string;
+}
+
+export interface WorkspaceDefinition {
+  id: string;
+  name: string;
+  description: string;
+  ownerId: string;
+  createdById: string;
+  currentUserRole: WorkspaceRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceMemberDefinition {
+  id: string;
+  workspaceId: string;
+  userId: string;
+  role: WorkspaceRole;
+  addedById: string | null;
+  user: PublicUserProfile;
   createdAt: string;
   updatedAt: string;
 }
@@ -80,6 +110,7 @@ export interface FolderDefinition {
 export interface CollectionDefinition {
   id: string;
   userId: string;
+  workspaceId: string;
   name: string;
   description: string;
   sortOrder: number;
@@ -103,6 +134,7 @@ export interface EnvironmentVariableDefinition {
 export interface EnvironmentDefinition {
   id: string;
   userId: string;
+  workspaceId: string;
   name: string;
   isGlobal: boolean;
   variables: EnvironmentVariableDefinition[];
@@ -217,4 +249,86 @@ export interface BackupExportPayload {
     cookies?: CookieDefinition[];
     history?: HistoryEntryDefinition[];
   };
+}
+
+export type LocalRequestBodyType =
+  | "none"
+  | "json"
+  | "text"
+  | "form-data"
+  | "x-www-form-urlencoded"
+  | "binary";
+
+export interface LocalRequestInput {
+  id: string;
+  method: string;
+  url: string;
+  headers?: Record<string, string>;
+  queryParams?: Record<string, string>;
+  body?: {
+    type: LocalRequestBodyType;
+    value?: unknown;
+  };
+  timeoutMs?: number;
+  followRedirects?: boolean;
+  maxRedirects?: number;
+}
+
+export interface LocalRequestResponse {
+  id: string;
+  ok: boolean;
+  status?: number;
+  statusText?: string;
+  headers?: Record<string, string | string[]>;
+  body?: string;
+  bodyBase64?: string;
+  bodyType?: "text" | "json" | "binary";
+  durationMs?: number;
+  sizeBytes?: number;
+  error?: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
+}
+
+export interface LocalHistoryEntry {
+  id: string;
+  requestId?: string | null;
+  workspaceId?: string | null;
+  collectionId?: string | null;
+  protocolType: ProtocolType;
+  method: HttpMethod;
+  url: string;
+  requestHeaders: Record<string, string>;
+  requestBody: string;
+  responseStatus: number;
+  responseHeaders: Record<string, string>;
+  responseBody: string;
+  durationMs: number;
+  sizeBytes?: number;
+  createdAt: string;
+}
+
+export interface LocalHistoryCreateInput
+  extends Omit<LocalHistoryEntry, "id" | "createdAt"> {
+  id?: string;
+  createdAt?: string;
+}
+
+export interface LocalHistoryFilters {
+  query?: string;
+  requestId?: string;
+  collectionId?: string;
+  workspaceId?: string;
+  limit?: number;
+}
+
+export interface DesktopApi {
+  executeRequest(input: LocalRequestInput): Promise<LocalRequestResponse>;
+  cancelRequest(requestId: string): Promise<{ cancelled: boolean }>;
+  saveLocalHistory(entry: LocalHistoryCreateInput): Promise<LocalHistoryEntry | null>;
+  getLocalHistory(filters?: LocalHistoryFilters): Promise<LocalHistoryEntry[]>;
+  deleteLocalHistory(id: string): Promise<{ success: boolean }>;
+  clearLocalHistory(): Promise<{ success: boolean }>;
 }

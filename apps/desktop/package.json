@@ -1,0 +1,36 @@
+{
+  "name": "@postman-clone/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "tsc -p tsconfig.json && electron dist/main.js",
+    "build": "tsc -p tsconfig.json",
+    "copy-renderer": "node scripts/copy-renderer.mjs",
+    "package": "corepack yarn build && corepack yarn copy-renderer && node scripts/package.mjs"
+  },
+  "dependencies": {
+    "@postman-clone/shared-types": "0.1.0",
+    "@postman-clone/shared-utils": "0.1.0"
+  },
+  "devDependencies": {
+    "electron": "30.5.1",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.postmanclone.desktop",
+    "productName": "Postman Clone",
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "release-desktop"
+    },
+    "win": {
+      "target": "dir",
+      "signAndEditExecutable": false
+    }
+  }
+}

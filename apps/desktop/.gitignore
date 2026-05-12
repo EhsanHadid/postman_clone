@@ -1,0 +1,5 @@
+dist/
+node_modules/
+release/
+release-desktop/
+release-desktop-*/

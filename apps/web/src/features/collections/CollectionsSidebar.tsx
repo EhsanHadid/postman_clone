@@ -20,6 +20,7 @@ import { useEnvironmentsStore } from "../../store/environmentsStore";
 import { useHistoryStore } from "../../store/historyStore";
 import { useLayoutStore } from "../../store/layoutStore";
 import { useTabsStore } from "../../store/tabsStore";
+import { useWorkspaceStore, workspacePermissions } from "../../store/workspaceStore";
 
 type SidebarMode = "collections" | "history" | "environments" | "cookies";
 
@@ -156,12 +157,19 @@ export function CollectionsSidebar() {
   const historyEntries = useHistoryStore((state) => state.entries);
   const openRequestTab = useTabsStore((state) => state.openRequestTab);
   const createRequestTab = useTabsStore((state) => state.createRequestTab);
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
+  const activeWorkspace = useWorkspaceStore((state) =>
+    state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId),
+  );
   const openTextDialog = useDialogStore((state) => state.openTextDialog);
   const toggleHistory = useLayoutStore((state) => state.toggleHistory);
   const toggleCookies = useLayoutStore((state) => state.toggleCookies);
   const toggleEnvironments = useLayoutStore((state) => state.toggleEnvironments);
   const [search, setSearch] = useState("");
   const [mode, setMode] = useState<SidebarMode>("collections");
+  const canEditCollections = workspacePermissions.canEditCollections(
+    activeWorkspace?.currentUserRole ?? null,
+  );
 
   const filteredCollections = useMemo(() => {
     if (!search.trim()) {
@@ -203,6 +211,10 @@ export function CollectionsSidebar() {
   );
 
   const createCollection = async () => {
+    if (!activeWorkspaceId || !canEditCollections) {
+      return;
+    }
+
     openTextDialog({
       title: "New Collection",
       description: "Add a collection to organize saved requests.",
@@ -210,13 +222,17 @@ export function CollectionsSidebar() {
       initialValue: "New Collection",
       submitLabel: "Create Collection",
       onSubmit: async (name) => {
-        await api.collections.create({ name });
+        await api.collections.createInWorkspace(activeWorkspaceId, { name });
         await fetchCollections();
       },
     });
   };
 
   const createRequest = async (collectionId: string, folderId: string | null) => {
+    if (!canEditCollections) {
+      return;
+    }
+
     openTextDialog({
       title: "New Request",
       description: "Create a saved request directly in this collection or folder.",
@@ -250,6 +266,10 @@ export function CollectionsSidebar() {
   };
 
   const createFolder = async (collectionId: string, parentFolderId: string | null = null) => {
+    if (!canEditCollections) {
+      return;
+    }
+
     openTextDialog({
       title: "New Folder",
       description: "Create a folder inside the current collection tree.",
@@ -264,6 +284,10 @@ export function CollectionsSidebar() {
   };
 
   const createEnvironment = async () => {
+    if (!activeWorkspaceId || !workspacePermissions.canUpdateWorkspace(activeWorkspace?.currentUserRole ?? null)) {
+      return;
+    }
+
     openTextDialog({
       title: "New Environment",
       description: "Add a reusable set of variables for this workspace.",
@@ -271,7 +295,7 @@ export function CollectionsSidebar() {
       initialValue: "New Environment",
       submitLabel: "Create Environment",
       onSubmit: async (name) => {
-        await api.environments.create({ name });
+        await api.environments.createInWorkspace(activeWorkspaceId, { name });
         await fetchEnvironments();
       },
     });
@@ -332,7 +356,12 @@ export function CollectionsSidebar() {
           </div>
 
           {mode === "collections" ? (
-            <button className="text-action text-action--accent" onClick={() => void createCollection()} type="button">
+            <button
+              className="text-action text-action--accent"
+              disabled={!canEditCollections}
+              onClick={() => void createCollection()}
+              type="button"
+            >
               <PlusIcon />
               <span>new</span>
             </button>
@@ -366,13 +395,19 @@ export function CollectionsSidebar() {
             <div className="sidebar__text-actions">
               <button
                 className="text-action text-action--accent"
+                disabled={!canEditCollections}
                 onClick={() => createRequestTab()}
                 type="button"
               >
                 <PlusIcon />
                 <span>new tab</span>
               </button>
-              <button className="text-action" onClick={() => void createCollection()} type="button">
+              <button
+                className="text-action"
+                disabled={!canEditCollections}
+                onClick={() => void createCollection()}
+                type="button"
+              >
                 <CollectionIcon />
                 <span>collection</span>
               </button>
@@ -389,6 +424,7 @@ export function CollectionsSidebar() {
                     <div className="sidebar-tree__header-actions">
                       <button
                         className="text-action text-action--quiet"
+                        disabled={!canEditCollections}
                         onClick={() => void createRequest(collection.id, null)}
                         type="button"
                       >
@@ -396,6 +432,7 @@ export function CollectionsSidebar() {
                       </button>
                       <button
                         className="text-action text-action--quiet"
+                        disabled={!canEditCollections}
                         onClick={() => void createFolder(collection.id, null)}
                         type="button"
                       >

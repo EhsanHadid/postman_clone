@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ImportExportControls } from "../features/import-export/ImportExportControls";
 import { CollectionsSidebar } from "../features/collections/CollectionsSidebar";
@@ -8,11 +9,16 @@ import { RequestEditor } from "../features/request-builder/RequestEditor";
 import { ResponseViewer } from "../features/response-viewer/ResponseViewer";
 import { RequestTabs } from "../features/tabs/RequestTabs";
 import { LogoutIcon, SettingsIcon } from "../components/AppIcons";
+import { WorkspaceChooserDialog } from "../features/workspaces/WorkspaceChooserDialog";
+import { WorkspaceSettingsDialog } from "../features/workspaces/WorkspaceSettingsDialog";
 import { useAuthStore } from "../store/authStore";
 import { useEnvironmentsStore } from "../store/environmentsStore";
 import { useLayoutStore } from "../store/layoutStore";
+import { useWorkspaceStore } from "../store/workspaceStore";
 
 export function AppShell() {
+  const [workspaceChooserOpen, setWorkspaceChooserOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
   const environments = useEnvironmentsStore((state) => state.environments);
@@ -21,8 +27,13 @@ export function AppShell() {
   const requestPaneSize = useLayoutStore((state) => state.requestPaneSize);
   const setSidebarSize = useLayoutStore((state) => state.setSidebarSize);
   const setRequestPaneSize = useLayoutStore((state) => state.setRequestPaneSize);
+  const workspaces = useWorkspaceStore((state) => state.workspaces);
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
   const activeEnvironment =
     environments.find((environment) => environment.id === activeEnvironmentId) ?? null;
+  const activeWorkspace =
+    workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? null;
+  const mustChooseWorkspace = !activeWorkspaceId;
 
   return (
     <div className="workspace-shell">
@@ -36,10 +47,15 @@ export function AppShell() {
         </div>
 
         <div className="app-header__actions">
+          <div className="active-workspace-chip">
+            <span className="user-chip__label">Workspace</span>
+            <strong>{activeWorkspace?.name ?? "Choose workspace"}</strong>
+          </div>
+
           <div className="user-chip">
             <span className="user-chip__avatar">{user?.username?.slice(0, 1).toUpperCase()}</span>
             <div className="user-chip__content">
-              <span className="user-chip__label">Workspace</span>
+              <span className="user-chip__label">Signed in</span>
               <strong>{user?.username}</strong>
             </div>
           </div>
@@ -51,9 +67,31 @@ export function AppShell() {
 
             <div className="app-menu__panel">
               <div className="app-menu__section">
-                <div className="app-menu__title">Workspace settings</div>
-                <div className="app-menu__caption">Import, export, restore, and session tools.</div>
+                <div className="app-menu__title">{user?.username}</div>
+                <div className="app-menu__caption">
+                  {activeWorkspace
+                    ? `${activeWorkspace.name} | ${activeWorkspace.currentUserRole}`
+                    : "No workspace selected"}
+                </div>
               </div>
+
+              <button
+                className="menu-action"
+                onClick={() => setWorkspaceChooserOpen(true)}
+                type="button"
+              >
+                <span>Change workspace</span>
+              </button>
+
+              <button
+                className="menu-action"
+                disabled={!activeWorkspace}
+                onClick={() => setSettingsOpen(true)}
+                type="button"
+              >
+                <SettingsIcon />
+                <span>Workspace settings</span>
+              </button>
 
               <ImportExportControls variant="menu" />
 
@@ -105,6 +143,13 @@ export function AppShell() {
       <EnvironmentDrawer />
       <HistoryDrawer />
       <CookiesDrawer />
+      {(mustChooseWorkspace || workspaceChooserOpen) ? (
+        <WorkspaceChooserDialog
+          canClose={!mustChooseWorkspace}
+          onClose={() => setWorkspaceChooserOpen(false)}
+        />
+      ) : null}
+      {settingsOpen ? <WorkspaceSettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
     </div>
   );
 }

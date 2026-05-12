@@ -5,21 +5,62 @@ import type {
   EnvironmentDefinition,
   ExecutionResponsePayload,
   HistoryEntryDefinition,
+  PublicUserProfile,
   RequestDefinition,
   UserProfile,
+  WorkspaceDefinition,
+  WorkspaceMemberDefinition,
+  WorkspaceRole,
 } from "@postman-clone/shared-types";
 
-const apiBase = import.meta.env.VITE_API_BASE_URL ?? "/api";
+const apiBase =
+  import.meta.env.VITE_API_BASE_URL ??
+  (window.location.protocol === "file:" ? "http://localhost:4000/api" : "/api");
+const desktopSessionKey = "postman-clone-desktop-session";
+
+const isDesktopRenderer = () => window.location.protocol === "file:";
+
+function getDesktopSessionToken(): string | null {
+  if (!isDesktopRenderer()) {
+    return null;
+  }
+
+  return window.localStorage.getItem(desktopSessionKey);
+}
+
+export function saveDesktopSessionToken(token?: string): void {
+  if (!isDesktopRenderer()) {
+    return;
+  }
+
+  if (token) {
+    window.localStorage.setItem(desktopSessionKey, token);
+  }
+}
+
+export function clearDesktopSessionToken(): void {
+  if (isDesktopRenderer()) {
+    window.localStorage.removeItem(desktopSessionKey);
+  }
+}
 
 type RequestOptions = RequestInit & {
   bodyJson?: unknown;
 };
 
+type AuthResponse = {
+  user: UserProfile;
+  userId: string;
+  sessionToken?: string;
+};
+
 async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const desktopSessionToken = getDesktopSessionToken();
   const response = await fetch(`${apiBase}${path}`, {
     credentials: "include",
     headers: {
       "content-type": "application/json",
+      ...(desktopSessionToken ? { "x-postman-clone-session": desktopSessionToken } : {}),
       ...(options.headers ?? {}),
     },
     ...options,
@@ -43,14 +84,14 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
 
 export const api = {
   auth: {
-    me: () => apiRequest<{ user: UserProfile; userId: string }>("/auth/me"),
+    me: () => apiRequest<AuthResponse>("/auth/me"),
     login: (payload: { username: string; password: string }) =>
-      apiRequest<{ user: UserProfile; userId: string }>("/auth/login", {
+      apiRequest<AuthResponse>("/auth/login", {
         method: "POST",
         bodyJson: payload,
       }),
     register: (payload: { username: string; password: string }) =>
-      apiRequest<{ user: UserProfile; userId: string }>("/auth/register", {
+      apiRequest<AuthResponse>("/auth/register", {
         method: "POST",
         bodyJson: payload,
       }),
@@ -61,8 +102,15 @@ export const api = {
   },
   collections: {
     list: () => apiRequest<CollectionTree[]>("/collections"),
+    listByWorkspace: (workspaceId: string) =>
+      apiRequest<CollectionTree[]>(`/collections/workspace/${workspaceId}`),
     create: (payload: Record<string, unknown>) =>
       apiRequest<CollectionDefinition>("/collections", { method: "POST", bodyJson: payload }),
+    createInWorkspace: (workspaceId: string, payload: Record<string, unknown>) =>
+      apiRequest<CollectionDefinition>(`/collections/workspace/${workspaceId}`, {
+        method: "POST",
+        bodyJson: payload,
+      }),
     update: (id: string, payload: Record<string, unknown>) =>
       apiRequest<CollectionDefinition>(`/collections/${id}`, {
         method: "PATCH",
@@ -92,8 +140,12 @@ export const api = {
   },
   environments: {
     list: () => apiRequest<EnvironmentDefinition[]>("/environments"),
+    listByWorkspace: (workspaceId: string) =>
+      apiRequest<EnvironmentDefinition[]>(`/environments/workspace/${workspaceId}`),
     create: (payload: Record<string, unknown>) =>
       apiRequest("/environments", { method: "POST", bodyJson: payload }),
+    createInWorkspace: (workspaceId: string, payload: Record<string, unknown>) =>
+      apiRequest(`/environments/workspace/${workspaceId}`, { method: "POST", bodyJson: payload }),
     update: (id: string, payload: Record<string, unknown>) =>
       apiRequest(`/environments/${id}`, { method: "PATCH", bodyJson: payload }),
     delete: (id: string) => apiRequest(`/environments/${id}`, { method: "DELETE" }),
@@ -128,6 +180,47 @@ export const api = {
         method: "POST",
         bodyJson: payload,
       }),
+  },
+  workspaces: {
+    list: () => apiRequest<WorkspaceDefinition[]>("/workspaces"),
+    create: (payload: { name: string; description?: string }) =>
+      apiRequest<WorkspaceDefinition>("/workspaces", { method: "POST", bodyJson: payload }),
+    update: (workspaceId: string, payload: { name?: string; description?: string }) =>
+      apiRequest<WorkspaceDefinition>(`/workspaces/${workspaceId}`, {
+        method: "PATCH",
+        bodyJson: payload,
+      }),
+    delete: (workspaceId: string) =>
+      apiRequest<{ success: boolean }>(`/workspaces/${workspaceId}`, { method: "DELETE" }),
+    members: (workspaceId: string) =>
+      apiRequest<WorkspaceMemberDefinition[]>(`/workspaces/${workspaceId}/members`),
+    addMember: (workspaceId: string, payload: { userId: string; role: Exclude<WorkspaceRole, "OWNER"> }) =>
+      apiRequest<WorkspaceMemberDefinition>(`/workspaces/${workspaceId}/members`, {
+        method: "POST",
+        bodyJson: payload,
+      }),
+    updateMember: (
+      workspaceId: string,
+      userId: string,
+      payload: { role: Exclude<WorkspaceRole, "OWNER"> },
+    ) =>
+      apiRequest<WorkspaceMemberDefinition>(`/workspaces/${workspaceId}/members/${userId}`, {
+        method: "PATCH",
+        bodyJson: payload,
+      }),
+    removeMember: (workspaceId: string, userId: string) =>
+      apiRequest<{ success: boolean }>(`/workspaces/${workspaceId}/members/${userId}`, {
+        method: "DELETE",
+      }),
+  },
+  users: {
+    search: (query: string, excludeWorkspaceId?: string) => {
+      const params = new URLSearchParams({ q: query });
+      if (excludeWorkspaceId) {
+        params.set("excludeWorkspaceId", excludeWorkspaceId);
+      }
+      return apiRequest<PublicUserProfile[]>(`/users/search?${params}`);
+    },
   },
   importPostman: (payload: Record<string, unknown>) =>
     apiRequest("/import/postman", {

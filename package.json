@@ -8,15 +8,18 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently \"yarn dev:api\" \"yarn dev:web\"",
-    "dev:api": "yarn workspace @postman-clone/api start:dev",
-    "dev:web": "yarn workspace @postman-clone/web dev",
-    "build": "yarn build:packages && yarn workspace @postman-clone/api build && yarn workspace @postman-clone/web build",
-    "build:packages": "yarn workspace @postman-clone/shared-types build && yarn workspace @postman-clone/shared-utils build",
-    "typecheck": "yarn typecheck:packages && yarn workspace @postman-clone/api typecheck && yarn workspace @postman-clone/web typecheck",
-    "typecheck:packages": "yarn workspace @postman-clone/shared-types typecheck && yarn workspace @postman-clone/shared-utils typecheck",
+    "dev": "concurrently \"corepack yarn dev:api\" \"corepack yarn dev:web\"",
+    "dev:api": "corepack yarn workspace @postman-clone/api start:dev",
+    "dev:web": "corepack yarn workspace @postman-clone/web dev",
+    "dev:desktop": "concurrently \"corepack yarn dev:web\" \"corepack yarn workspace @postman-clone/desktop dev\"",
+    "build": "corepack yarn build:packages && corepack yarn workspace @postman-clone/api build && corepack yarn workspace @postman-clone/web build",
+    "build:desktop": "corepack yarn build:packages && corepack yarn workspace @postman-clone/web build && corepack yarn workspace @postman-clone/desktop build",
+    "package:desktop": "corepack yarn build:packages && corepack yarn workspace @postman-clone/web build && corepack yarn workspace @postman-clone/desktop package",
+    "build:packages": "corepack yarn workspace @postman-clone/shared-types build && corepack yarn workspace @postman-clone/shared-utils build",
+    "typecheck": "corepack yarn typecheck:packages && corepack yarn workspace @postman-clone/api typecheck && corepack yarn workspace @postman-clone/web typecheck",
+    "typecheck:packages": "corepack yarn workspace @postman-clone/shared-types typecheck && corepack yarn workspace @postman-clone/shared-utils typecheck",
     "lint": "eslint . --ext .ts,.tsx",
-    "seed": "yarn workspace @postman-clone/api seed"
+    "seed": "corepack yarn workspace @postman-clone/api seed"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.31.0",
