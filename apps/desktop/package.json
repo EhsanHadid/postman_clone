@@ -29,8 +29,19 @@
       "output": "release-desktop"
     },
     "win": {
-      "target": "dir",
+      "target": [
+        "nsis",
+        "dir"
+      ],
       "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Postman Clone"
     }
   }
 }
