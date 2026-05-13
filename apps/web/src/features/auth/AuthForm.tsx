@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
 
+const brandLogoUrl = `${import.meta.env.BASE_URL}assets/brand/logo.svg`;
+
 export function AuthForm() {
   const navigate = useNavigate();
   const loading = useAuthStore((state) => state.loading);
@@ -24,6 +26,7 @@ export function AuthForm() {
 
   return (
     <form className="auth-form card" onSubmit={submit}>
+      <img className="auth-form__logo" src={brandLogoUrl} alt="Postman Clone" />
       <div className="auth-form__eyebrow">Local API Workspace</div>
       <h1>Postman Clone</h1>
       <p>Private, dark-mode API tooling for local HTTP and tRPC workflows.</p>

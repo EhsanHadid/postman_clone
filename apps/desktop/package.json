@@ -1,12 +1,15 @@
 {
   "name": "@postman-clone/desktop",
   "version": "0.1.0",
+  "description": "Postman Clone desktop API client",
+  "author": "Postman Clone",
   "private": true,
   "main": "dist/main.js",
   "scripts": {
     "dev": "tsc -p tsconfig.json && electron dist/main.js",
     "build": "tsc -p tsconfig.json",
     "copy-renderer": "node scripts/copy-renderer.mjs",
+    "generate-assets": "powershell -ExecutionPolicy Bypass -File scripts/generate-brand-assets.ps1",
     "package": "corepack yarn build && corepack yarn copy-renderer && node scripts/package.mjs"
   },
   "dependencies": {
@@ -15,20 +18,26 @@
   },
   "devDependencies": {
     "electron": "30.5.1",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "rcedit": "5.0.2"
   },
   "build": {
     "appId": "com.postmanclone.desktop",
     "productName": "Postman Clone",
+    "afterPack": "scripts/after-pack.cjs",
     "files": [
       "dist/**/*",
+      "assets/**/*",
       "package.json"
     ],
+    "icon": "assets/icon.ico",
     "directories": {
       "buildResources": "assets",
       "output": "release-desktop"
     },
     "win": {
+      "executableName": "Postman Clone",
+      "icon": "assets/icon.ico",
       "target": [
         "nsis",
         "dir"

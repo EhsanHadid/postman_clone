@@ -11,6 +11,19 @@ import { LocalRequestExecutor } from "./request-executor";
 
 let historyStore: LocalHistoryStore;
 const requestExecutor = new LocalRequestExecutor();
+const appUserModelId = "com.postmanclone.desktop";
+const appName = "Postman Clone";
+
+app.setName(appName);
+app.setAppUserModelId(appUserModelId);
+
+function getAppIconPath() {
+  if (app.isPackaged) {
+    return join(app.getAppPath(), "assets/icon.ico");
+  }
+
+  return join(__dirname, "../assets/icon.ico");
+}
 
 function getRendererUrl() {
   const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? "http://localhost:5173";
@@ -24,10 +37,12 @@ function getRendererUrl() {
 
 async function createWindow() {
   const window = new BrowserWindow({
+    title: appName,
     width: 1440,
     height: 920,
     minWidth: 1100,
     minHeight: 720,
+    icon: getAppIconPath(),
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       contextIsolation: true,

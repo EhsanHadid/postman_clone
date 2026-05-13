@@ -54,6 +54,10 @@ type AuthResponse = {
   sessionToken?: string;
 };
 
+export type PublicAppConfig = {
+  desktopDownloadUrl: string | null;
+};
+
 async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const desktopSessionToken = getDesktopSessionToken();
   const response = await fetch(`${apiBase}${path}`, {
@@ -83,6 +87,9 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
 }
 
 export const api = {
+  appConfig: {
+    get: () => apiRequest<PublicAppConfig>("/app-config"),
+  },
   auth: {
     me: () => apiRequest<AuthResponse>("/auth/me"),
     login: (payload: { username: string; password: string }) =>

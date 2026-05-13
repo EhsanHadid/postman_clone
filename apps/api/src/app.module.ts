@@ -15,6 +15,7 @@ import { ImportExportModule } from "./modules/import-export/import-export.module
 import { BackupModule } from "./modules/backup/backup.module";
 import { TrpcModule } from "./modules/trpc/trpc.module";
 import { WorkspacesModule } from "./modules/workspaces/workspaces.module";
+import { AppConfigModule } from "./modules/app-config/app-config.module";
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { WorkspacesModule } from "./modules/workspaces/workspaces.module";
     ExecutionModule,
     ImportExportModule,
     BackupModule,
+    AppConfigModule,
   ],
 })
 export class AppModule {}

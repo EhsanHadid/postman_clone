@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ImportExportControls } from "../features/import-export/ImportExportControls";
 import { CollectionsSidebar } from "../features/collections/CollectionsSidebar";
@@ -12,15 +12,21 @@ import { LogoutIcon, SettingsIcon } from "../components/AppIcons";
 import { WorkspaceChooserDialog } from "../features/workspaces/WorkspaceChooserDialog";
 import { WorkspaceSettingsDialog } from "../features/workspaces/WorkspaceSettingsDialog";
 import { useAuthStore } from "../store/authStore";
+import { useAppConfigStore } from "../store/appConfigStore";
 import { useEnvironmentsStore } from "../store/environmentsStore";
 import { useLayoutStore } from "../store/layoutStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
+
+const brandLogoUrl = `${import.meta.env.BASE_URL}assets/brand/logo.svg`;
+const isDesktopRenderer = window.location.protocol === "file:";
 
 export function AppShell() {
   const [workspaceChooserOpen, setWorkspaceChooserOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+  const desktopDownloadUrl = useAppConfigStore((state) => state.desktopDownloadUrl);
+  const fetchAppConfig = useAppConfigStore((state) => state.fetchAppConfig);
   const environments = useEnvironmentsStore((state) => state.environments);
   const activeEnvironmentId = useEnvironmentsStore((state) => state.activeEnvironmentId);
   const sidebarSize = useLayoutStore((state) => state.sidebarSize);
@@ -35,11 +41,19 @@ export function AppShell() {
     workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? null;
   const mustChooseWorkspace = !activeWorkspaceId;
 
+  useEffect(() => {
+    void fetchAppConfig();
+  }, [fetchAppConfig]);
+
   return (
     <div className="workspace-shell">
       <header className="app-header">
         <div className="app-header__brand">
-          <div className="app-header__logo">PM</div>
+          <img
+            alt="Postman Clone"
+            className="app-header__logo"
+            src={brandLogoUrl}
+          />
           <div>
             <strong>Postman Clone</strong>
             <div className="app-header__meta">Local desktop workspace</div>
@@ -47,6 +61,17 @@ export function AppShell() {
         </div>
 
         <div className="app-header__actions">
+          {!isDesktopRenderer && desktopDownloadUrl ? (
+            <a
+              className="chrome-button app-header__download"
+              href={desktopDownloadUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Download Desktop
+            </a>
+          ) : null}
+
           <div className="active-workspace-chip">
             <span className="user-chip__label">Workspace</span>
             <strong>{activeWorkspace?.name ?? "Choose workspace"}</strong>

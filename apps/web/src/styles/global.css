@@ -272,12 +272,16 @@ textarea::placeholder {
 }
 
 .chrome-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 28px;
   padding: 4px 8px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-small);
   background: var(--panel-bg-alt);
   color: var(--text-soft);
+  text-decoration: none;
 }
 
 .chrome-button--icon {
@@ -433,7 +437,13 @@ textarea::placeholder {
 .login-page__panel {
   display: grid;
   align-content: center;
+  gap: 12px;
   background: #171a1f;
+}
+
+.login-page__download {
+  justify-self: start;
+  text-decoration: none;
 }
 
 .login-page__eyebrow,
@@ -450,6 +460,12 @@ textarea::placeholder {
   display: grid;
   gap: 14px;
   align-content: center;
+}
+
+.auth-form__logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
 }
 
 .auth-form__field {
@@ -494,14 +510,11 @@ textarea::placeholder {
 .app-header__logo {
   width: 24px;
   height: 24px;
-  border-radius: 2px;
-  display: grid;
-  place-items: center;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #1b100c;
-  background: var(--accent);
+  object-fit: contain;
+}
+
+.app-header__download {
+  white-space: nowrap;
 }
 
 .app-header__meta,

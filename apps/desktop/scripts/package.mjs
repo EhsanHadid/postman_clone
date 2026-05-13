@@ -18,6 +18,10 @@ const child = spawn(
   process.execPath,
   [builderCli, `--config.directories.output=release-desktop-${stamp}`],
   {
+    env: {
+      ...process.env,
+      CSC_IDENTITY_AUTO_DISCOVERY: "false",
+    },
     stdio: "inherit",
     shell: false,
   },
