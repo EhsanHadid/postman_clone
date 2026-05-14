@@ -1,0 +1,21 @@
+{
+  "name": "Postman Clone",
+  "short_name": "Postman Clone",
+  "description": "Private API tooling for local HTTP and tRPC workflows.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121417",
+  "theme_color": "#15181c",
+  "icons": [
+    {
+      "src": "assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

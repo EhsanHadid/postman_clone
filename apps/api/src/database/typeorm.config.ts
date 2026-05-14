@@ -11,6 +11,8 @@ import {
   RequestSnapshotEntity,
   SessionEntity,
   UserEntity,
+  WorkspaceEntity,
+  WorkspaceMemberEntity,
 } from "./entities";
 
 export const getTypeOrmConfig = (): TypeOrmModuleOptions => ({
@@ -22,6 +24,8 @@ export const getTypeOrmConfig = (): TypeOrmModuleOptions => ({
   database: process.env.DB_NAME ?? "postman_clone",
   entities: [
     UserEntity,
+    WorkspaceEntity,
+    WorkspaceMemberEntity,
     SessionEntity,
     CollectionEntity,
     FolderEntity,

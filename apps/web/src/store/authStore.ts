@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api } from "../services/api";
+import { api, clearDesktopSessionToken, saveDesktopSessionToken } from "../services/api";
 import type { UserProfile } from "@postman-clone/shared-types";
 
 interface AuthState {
@@ -30,6 +30,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ loading: true, error: null });
     try {
       const result = await api.auth.login(payload);
+      saveDesktopSessionToken(result.sessionToken);
       set({ user: result.user, loading: false });
     } catch (error) {
       set({ loading: false, error: (error as Error).message });
@@ -40,6 +41,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ loading: true, error: null });
     try {
       const result = await api.auth.register(payload);
+      saveDesktopSessionToken(result.sessionToken);
       set({ user: result.user, loading: false });
     } catch (error) {
       set({ loading: false, error: (error as Error).message });
@@ -48,6 +50,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   logout: async () => {
     await api.auth.logout();
+    clearDesktopSessionToken();
     set({ user: null });
   },
 }));

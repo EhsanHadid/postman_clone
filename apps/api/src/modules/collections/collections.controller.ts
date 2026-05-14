@@ -21,12 +21,29 @@ export class CollectionsController {
 
   @Get()
   list(@CurrentUser() user: UserEntity) {
-    return this.collectionsService.listTree(user.id);
+    return this.collectionsService.listTreeForDefaultWorkspace(user.id);
+  }
+
+  @Get("workspace/:workspaceId")
+  listByWorkspace(
+    @CurrentUser() user: UserEntity,
+    @Param("workspaceId") workspaceId: string,
+  ) {
+    return this.collectionsService.listTree(user.id, workspaceId);
   }
 
   @Post()
   create(@CurrentUser() user: UserEntity, @Body() dto: CreateCollectionDto) {
-    return this.collectionsService.create(user.id, dto);
+    return this.collectionsService.createInDefaultWorkspace(user.id, dto);
+  }
+
+  @Post("workspace/:workspaceId")
+  createInWorkspace(
+    @CurrentUser() user: UserEntity,
+    @Param("workspaceId") workspaceId: string,
+    @Body() dto: CreateCollectionDto,
+  ) {
+    return this.collectionsService.create(user.id, workspaceId, dto);
   }
 
   @Patch(":id")

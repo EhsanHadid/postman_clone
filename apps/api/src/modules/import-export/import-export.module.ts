@@ -5,11 +5,15 @@ import {
   FolderEntity,
   RequestEntity,
 } from "../../database/entities";
+import { WorkspacesModule } from "../workspaces/workspaces.module";
 import { ImportExportController } from "./import-export.controller";
 import { ImportExportService } from "./import-export.service";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CollectionEntity, FolderEntity, RequestEntity])],
+  imports: [
+    TypeOrmModule.forFeature([CollectionEntity, FolderEntity, RequestEntity]),
+    WorkspacesModule,
+  ],
   controllers: [ImportExportController],
   providers: [ImportExportService],
 })

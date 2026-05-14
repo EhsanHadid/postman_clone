@@ -15,6 +15,8 @@ import {
   RequestEntity,
   RequestSnapshotEntity,
 } from "../../database/entities";
+import { WorkspacesService } from "../workspaces/workspaces.service";
+import { WorkspacePermissionsService } from "../workspaces/workspace-permissions.service";
 import { RestoreBackupDto } from "./dto/restore-backup.dto";
 
 @Injectable()
@@ -38,10 +40,14 @@ export class BackupService {
     private readonly historyRepository: Repository<HistoryEntryEntity>,
     @InjectRepository(BackupMetadataEntity)
     private readonly backupRepository: Repository<BackupMetadataEntity>,
+    private readonly workspacesService: WorkspacesService,
+    private readonly permissions: WorkspacePermissionsService,
   ) {}
 
   async exportWorkspace(userId: string) {
-    const collections = await this.collectionRepository.find({ where: { userId } });
+    const workspaceId = await this.workspacesService.ensureDefaultWorkspace(userId);
+    await this.permissions.requireMember(userId, workspaceId);
+    const collections = await this.collectionRepository.find({ where: { workspaceId } });
     const collectionIds = collections.map((collection) => collection.id);
     const [folders, requests, environments, cookies, history] = await Promise.all([
       collectionIds.length
@@ -55,7 +61,7 @@ export class BackupService {
           })
         : Promise.resolve([]),
       this.environmentRepository.find({
-        where: { userId },
+        where: { workspaceId },
         relations: { variables: true },
       }),
       this.cookieRepository.find({ where: { userId } }),
@@ -91,10 +97,12 @@ export class BackupService {
     }
 
     await this.dataSource.transaction(async (manager) => {
+      const workspaceId = await this.workspacesService.ensureDefaultWorkspace(userId);
+      await this.permissions.requireCollectionWrite(userId, workspaceId);
       await manager.delete(HistoryEntryEntity, { userId });
       await manager.delete(CookieEntity, { userId });
 
-      const collections = await manager.find(CollectionEntity, { where: { userId } });
+      const collections = await manager.find(CollectionEntity, { where: { workspaceId } });
       if (collections.length) {
         const collectionIds = collections.map((collection) => collection.id);
         const requests = await manager.find(RequestEntity, {
@@ -109,15 +117,15 @@ export class BackupService {
         await manager.delete(RequestEntity, collectionIds.map((id) => ({ collectionId: id })));
         await manager.delete(FolderEntity, collectionIds.map((id) => ({ collectionId: id })));
       }
-      await manager.delete(CollectionEntity, { userId });
-      const environments = await manager.find(EnvironmentEntity, { where: { userId } });
+      await manager.delete(CollectionEntity, { workspaceId });
+      const environments = await manager.find(EnvironmentEntity, { where: { workspaceId } });
       if (environments.length) {
         await manager.delete(
           EnvironmentVariableEntity,
           environments.map((environment) => ({ environmentId: environment.id })),
         );
       }
-      await manager.delete(EnvironmentEntity, { userId });
+      await manager.delete(EnvironmentEntity, { workspaceId });
 
       await manager.save(
         BackupMetadataEntity,
@@ -141,6 +149,7 @@ export class BackupService {
           manager.create(CollectionEntity, {
             ...rawCollection,
             userId,
+            workspaceId,
           }),
         );
       }
@@ -161,6 +170,7 @@ export class BackupService {
           manager.create(EnvironmentEntity, {
             ...environmentData,
             userId,
+            workspaceId,
           }),
         );
 

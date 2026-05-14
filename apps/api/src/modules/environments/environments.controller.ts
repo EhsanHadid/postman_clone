@@ -25,12 +25,29 @@ export class EnvironmentsController {
 
   @Get()
   list(@CurrentUser() user: UserEntity) {
-    return this.environmentsService.list(user.id);
+    return this.environmentsService.listForDefaultWorkspace(user.id);
+  }
+
+  @Get("workspace/:workspaceId")
+  listByWorkspace(
+    @CurrentUser() user: UserEntity,
+    @Param("workspaceId") workspaceId: string,
+  ) {
+    return this.environmentsService.list(user.id, workspaceId);
   }
 
   @Post()
   create(@CurrentUser() user: UserEntity, @Body() dto: CreateEnvironmentDto) {
-    return this.environmentsService.create(user.id, dto);
+    return this.environmentsService.createInDefaultWorkspace(user.id, dto);
+  }
+
+  @Post("workspace/:workspaceId")
+  createInWorkspace(
+    @CurrentUser() user: UserEntity,
+    @Param("workspaceId") workspaceId: string,
+    @Body() dto: CreateEnvironmentDto,
+  ) {
+    return this.environmentsService.create(user.id, workspaceId, dto);
   }
 
   @Patch(":id")

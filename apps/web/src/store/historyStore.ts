@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { HistoryEntryDefinition } from "@postman-clone/shared-types";
-import { api } from "../services/api";
+import { localDesktop } from "../services/localDesktop";
 
 interface HistoryState {
   entries: HistoryEntryDefinition[];
@@ -10,7 +10,11 @@ interface HistoryState {
 export const useHistoryStore = create<HistoryState>((set) => ({
   entries: [],
   fetchHistory: async () => {
-    const entries = await api.history.list();
-    set({ entries });
+    try {
+      const entries = await localDesktop.history.list();
+      set({ entries: entries as HistoryEntryDefinition[] });
+    } catch {
+      set({ entries: [] });
+    }
   },
 }));

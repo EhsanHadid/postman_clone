@@ -4,6 +4,7 @@ import { BaseEntity } from "./base.entity";
 import { UserEntity } from "./user.entity";
 import { FolderEntity } from "./folder.entity";
 import { RequestEntity } from "./request.entity";
+import { WorkspaceEntity } from "./workspace.entity";
 
 @Entity("collections")
 export class CollectionEntity extends BaseEntity {
@@ -13,6 +14,15 @@ export class CollectionEntity extends BaseEntity {
   @ManyToOne(() => UserEntity, (user) => user.collections, { onDelete: "CASCADE" })
   @JoinColumn({ name: "userId" })
   user!: UserEntity;
+
+  @Column()
+  workspaceId!: string;
+
+  @ManyToOne(() => WorkspaceEntity, (workspace) => workspace.collections, {
+    onDelete: "CASCADE",
+  })
+  @JoinColumn({ name: "workspaceId" })
+  workspace!: WorkspaceEntity;
 
   @Column({ length: 120 })
   name!: string;

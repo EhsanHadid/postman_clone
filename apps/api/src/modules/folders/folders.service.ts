@@ -7,6 +7,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { CollectionEntity } from "../../database/entities/collection.entity";
 import { FolderEntity } from "../../database/entities/folder.entity";
+import { WorkspacePermissionsService } from "../workspaces/workspace-permissions.service";
 import { CreateFolderDto, UpdateFolderDto } from "./dto/folder.dto";
 
 @Injectable()
@@ -16,10 +17,12 @@ export class FoldersService {
     private readonly folderRepository: Repository<FolderEntity>,
     @InjectRepository(CollectionEntity)
     private readonly collectionRepository: Repository<CollectionEntity>,
+    private readonly permissions: WorkspacePermissionsService,
   ) {}
 
   async create(userId: string, dto: CreateFolderDto): Promise<FolderEntity> {
-    await this.assertCollectionOwnership(userId, dto.collectionId);
+    const collection = await this.assertCollectionOwnership(userId, dto.collectionId);
+    await this.permissions.requireCollectionWrite(userId, collection.workspaceId);
 
     if (dto.parentFolderId) {
       const parentFolder = await this.findOwned(userId, dto.parentFolderId);
@@ -42,6 +45,7 @@ export class FoldersService {
 
   async update(userId: string, folderId: string, dto: UpdateFolderDto): Promise<FolderEntity> {
     const folder = await this.findOwned(userId, folderId);
+    await this.permissions.requireCollectionWrite(userId, folder.collection.workspaceId);
 
     if (dto.parentFolderId && dto.parentFolderId !== folder.id) {
       const parentFolder = await this.findOwned(userId, dto.parentFolderId);
@@ -65,6 +69,7 @@ export class FoldersService {
 
   async delete(userId: string, folderId: string): Promise<void> {
     const folder = await this.findOwned(userId, folderId);
+    await this.permissions.requireCollectionWrite(userId, folder.collection.workspaceId);
     await this.folderRepository.remove(folder);
   }
 
@@ -76,20 +81,25 @@ export class FoldersService {
       },
     });
 
-    if (!folder || folder.collection.userId !== userId) {
+    if (!folder || !(await this.permissions.getRole(userId, folder.collection.workspaceId))) {
       throw new NotFoundException("Folder not found.");
     }
 
     return folder;
   }
 
-  private async assertCollectionOwnership(userId: string, collectionId: string): Promise<void> {
+  private async assertCollectionOwnership(
+    userId: string,
+    collectionId: string,
+  ): Promise<CollectionEntity> {
     const collection = await this.collectionRepository.findOne({
-      where: { id: collectionId, userId },
+      where: { id: collectionId },
     });
 
-    if (!collection) {
+    if (!collection || !(await this.permissions.getRole(userId, collection.workspaceId))) {
       throw new NotFoundException("Collection not found.");
     }
+
+    return collection;
   }
 }

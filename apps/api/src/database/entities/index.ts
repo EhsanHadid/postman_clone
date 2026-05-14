@@ -9,3 +9,5 @@ export { RequestEntity } from "./request.entity";
 export { RequestSnapshotEntity } from "./request-snapshot.entity";
 export { SessionEntity } from "./session.entity";
 export { UserEntity } from "./user.entity";
+export { WorkspaceEntity } from "./workspace.entity";
+export { WorkspaceMemberEntity } from "./workspace-member.entity";

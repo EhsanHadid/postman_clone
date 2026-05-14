@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { CollectionTree } from "@postman-clone/shared-types";
 import { api } from "../services/api";
+import { useWorkspaceStore } from "./workspaceStore";
 
 interface CollectionsState {
   collections: CollectionTree[];
@@ -14,7 +15,10 @@ export const useCollectionsStore = create<CollectionsState>((set) => ({
   fetchCollections: async () => {
     set({ loading: true });
     try {
-      const collections = await api.collections.list();
+      const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+      const collections = workspaceId
+        ? await api.collections.listByWorkspace(workspaceId)
+        : [];
       set({ collections, loading: false });
     } catch (_error) {
       set({ loading: false });

@@ -14,8 +14,23 @@ async function bootstrap(): Promise<void> {
       forbidNonWhitelisted: false,
     }),
   );
+  const allowedOrigins = (process.env.APP_ORIGIN ?? "http://localhost:5173,null")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
   app.enableCors({
-    origin: process.env.APP_ORIGIN ?? "http://localhost:5173",
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void,
+    ) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin ${origin} is not allowed by CORS.`), false);
+    },
     credentials: true,
   });
   app.setGlobalPrefix("api");

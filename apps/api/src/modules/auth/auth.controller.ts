@@ -30,6 +30,12 @@ const sanitizeUser = (user: UserEntity) => ({
   updatedAt: user.updatedAt,
 });
 
+const authPayload = (result: { user: UserEntity; sessionToken: string }) => ({
+  user: sanitizeUser(result.user),
+  userId: result.user.id,
+  sessionToken: result.sessionToken,
+});
+
 @Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -46,10 +52,7 @@ export class AuthController {
 
     response.cookie(SESSION_COOKIE_NAME, result.sessionToken, cookieOptions);
 
-    return {
-      user: sanitizeUser(result.user),
-      userId: result.user.id,
-    };
+    return authPayload(result);
   }
 
   @HttpCode(200)
@@ -65,10 +68,7 @@ export class AuthController {
 
     response.cookie(SESSION_COOKIE_NAME, result.sessionToken, cookieOptions);
 
-    return {
-      user: sanitizeUser(result.user),
-      userId: result.user.id,
-    };
+    return authPayload(result);
   }
 
   @UseGuards(SessionAuthGuard)

@@ -11,6 +11,7 @@ import {
   RequestEntity,
   RequestSnapshotEntity,
 } from "../../database/entities";
+import { WorkspacePermissionsService } from "../workspaces/workspace-permissions.service";
 import { CreateRequestDto, UpdateRequestDto } from "./dto/request.dto";
 
 @Injectable()
@@ -24,6 +25,7 @@ export class RequestsService {
     private readonly collectionRepository: Repository<CollectionEntity>,
     @InjectRepository(FolderEntity)
     private readonly folderRepository: Repository<FolderEntity>,
+    private readonly permissions: WorkspacePermissionsService,
   ) {}
 
   async findOwned(userId: string, requestId: string): Promise<RequestEntity> {
@@ -32,7 +34,7 @@ export class RequestsService {
       relations: { collection: true },
     });
 
-    if (!request || request.collection.userId !== userId) {
+    if (!request || !(await this.permissions.getRole(userId, request.collection.workspaceId))) {
       throw new NotFoundException("Request not found.");
     }
 
@@ -45,12 +47,13 @@ export class RequestsService {
 
   async create(userId: string, dto: CreateRequestDto): Promise<RequestEntity> {
     const collection = await this.collectionRepository.findOne({
-      where: { id: dto.collectionId, userId },
+      where: { id: dto.collectionId },
     });
 
     if (!collection) {
       throw new NotFoundException("Collection not found.");
     }
+    await this.permissions.requireCollectionWrite(userId, collection.workspaceId);
 
     if (dto.folderId) {
       const folder = await this.folderRepository.findOne({
@@ -58,7 +61,7 @@ export class RequestsService {
         relations: { collection: true },
       });
 
-      if (!folder || folder.collection.userId !== userId) {
+      if (!folder || folder.collection.workspaceId !== collection.workspaceId) {
         throw new NotFoundException("Folder not found.");
       }
 
@@ -96,16 +99,18 @@ export class RequestsService {
     dto: UpdateRequestDto,
   ): Promise<RequestEntity> {
     const request = await this.findOwned(userId, requestId);
+    await this.permissions.requireCollectionWrite(userId, request.collection.workspaceId);
     await this.createSnapshot(request);
 
     if (dto.collectionId && dto.collectionId !== request.collectionId) {
       const collection = await this.collectionRepository.findOne({
-        where: { id: dto.collectionId, userId },
+        where: { id: dto.collectionId },
       });
 
       if (!collection) {
         throw new NotFoundException("Collection not found.");
       }
+      await this.permissions.requireCollectionWrite(userId, collection.workspaceId);
 
       request.collectionId = dto.collectionId;
     }
@@ -116,7 +121,7 @@ export class RequestsService {
         relations: { collection: true },
       });
 
-      if (!folder || folder.collection.userId !== userId) {
+      if (!folder || folder.collectionId !== (dto.collectionId ?? request.collectionId)) {
         throw new NotFoundException("Folder not found.");
       }
     }
@@ -148,6 +153,7 @@ export class RequestsService {
 
   async duplicate(userId: string, requestId: string): Promise<RequestEntity> {
     const request = await this.findOwned(userId, requestId);
+    await this.permissions.requireCollectionWrite(userId, request.collection.workspaceId);
 
     return this.requestRepository.save(
       this.requestRepository.create({
@@ -174,6 +180,7 @@ export class RequestsService {
 
   async delete(userId: string, requestId: string): Promise<void> {
     const request = await this.findOwned(userId, requestId);
+    await this.permissions.requireCollectionWrite(userId, request.collection.workspaceId);
     await this.requestRepository.remove(request);
   }
 

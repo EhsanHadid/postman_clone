@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { EnvironmentDefinition } from "@postman-clone/shared-types";
 import { api } from "../services/api";
+import { useWorkspaceStore } from "./workspaceStore";
 
 interface EnvironmentsState {
   environments: EnvironmentDefinition[];
@@ -16,7 +17,10 @@ export const useEnvironmentsStore = create<EnvironmentsState>()(
       environments: [],
       activeEnvironmentId: null,
       fetchEnvironments: async () => {
-        const environments = await api.environments.list();
+        const workspaceId = useWorkspaceStore.getState().activeWorkspaceId;
+        const environments = workspaceId
+          ? await api.environments.listByWorkspace(workspaceId)
+          : [];
         const globalEnvironment = environments.find((environment) => environment.isGlobal);
         set((state) => ({
           environments,

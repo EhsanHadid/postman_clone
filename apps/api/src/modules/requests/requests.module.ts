@@ -6,6 +6,7 @@ import {
   RequestEntity,
   RequestSnapshotEntity,
 } from "../../database/entities";
+import { WorkspacesModule } from "../workspaces/workspaces.module";
 import { RequestsController } from "./requests.controller";
 import { RequestsService } from "./requests.service";
 
@@ -17,6 +18,7 @@ import { RequestsService } from "./requests.service";
       CollectionEntity,
       FolderEntity,
     ]),
+    WorkspacesModule,
   ],
   controllers: [RequestsController],
   providers: [RequestsService],
