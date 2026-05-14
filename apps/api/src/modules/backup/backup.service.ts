@@ -44,10 +44,13 @@ export class BackupService {
     private readonly permissions: WorkspacePermissionsService,
   ) {}
 
-  async exportWorkspace(userId: string) {
-    const workspaceId = await this.workspacesService.ensureDefaultWorkspace(userId);
-    await this.permissions.requireMember(userId, workspaceId);
-    const collections = await this.collectionRepository.find({ where: { workspaceId } });
+  async exportWorkspace(userId: string, workspaceId?: string) {
+    const resolvedWorkspaceId =
+      workspaceId ?? await this.workspacesService.ensureDefaultWorkspace(userId);
+    await this.permissions.requireMember(userId, resolvedWorkspaceId);
+    const collections = await this.collectionRepository.find({
+      where: { workspaceId: resolvedWorkspaceId },
+    });
     const collectionIds = collections.map((collection) => collection.id);
     const [folders, requests, environments, cookies, history] = await Promise.all([
       collectionIds.length
@@ -61,7 +64,7 @@ export class BackupService {
           })
         : Promise.resolve([]),
       this.environmentRepository.find({
-        where: { workspaceId },
+        where: { workspaceId: resolvedWorkspaceId },
         relations: { variables: true },
       }),
       this.cookieRepository.find({ where: { userId } }),
@@ -97,7 +100,7 @@ export class BackupService {
     }
 
     await this.dataSource.transaction(async (manager) => {
-      const workspaceId = await this.workspacesService.ensureDefaultWorkspace(userId);
+      const workspaceId = dto.workspaceId ?? await this.workspacesService.ensureDefaultWorkspace(userId);
       await this.permissions.requireCollectionWrite(userId, workspaceId);
       await manager.delete(HistoryEntryEntity, { userId });
       await manager.delete(CookieEntity, { userId });

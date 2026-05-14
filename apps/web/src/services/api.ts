@@ -231,8 +231,13 @@ export const api = {
       method: "POST",
       bodyJson: payload,
     }),
-  exportBackup: async () => {
-    const response = await fetch(`${apiBase}/backup/export`, {
+  exportBackup: async (workspaceId?: string | null) => {
+    const params = new URLSearchParams();
+    if (workspaceId) {
+      params.set("workspaceId", workspaceId);
+    }
+    const query = params.toString();
+    const response = await fetch(`${apiBase}/backup/export${query ? `?${query}` : ""}`, {
       credentials: "include",
     });
 

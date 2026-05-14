@@ -4,6 +4,8 @@ import path from "node:path";
 import { Repository } from "typeorm";
 import {
   CollectionEntity,
+  EnvironmentEntity,
+  EnvironmentVariableEntity,
   FolderEntity,
   RequestEntity,
 } from "../../database/entities";
@@ -17,6 +19,14 @@ type PostmanAuth = {
   bearer?: Array<{ key: string; value: string }>;
 };
 
+type PostmanVariable = {
+  key?: unknown;
+  value?: unknown;
+  enabled?: unknown;
+  disabled?: unknown;
+  description?: unknown;
+};
+
 @Injectable()
 export class ImportExportService {
   constructor(
@@ -26,15 +36,33 @@ export class ImportExportService {
     private readonly folderRepository: Repository<FolderEntity>,
     @InjectRepository(RequestEntity)
     private readonly requestRepository: Repository<RequestEntity>,
+    @InjectRepository(EnvironmentEntity)
+    private readonly environmentRepository: Repository<EnvironmentEntity>,
+    @InjectRepository(EnvironmentVariableEntity)
+    private readonly variableRepository: Repository<EnvironmentVariableEntity>,
     private readonly workspacesService: WorkspacesService,
     private readonly permissions: WorkspacePermissionsService,
   ) {}
 
   async importPostman(userId: string, dto: ImportPostmanDto) {
-    const workspaceId = await this.workspacesService.ensureDefaultWorkspace(userId);
-    await this.permissions.requireCollectionWrite(userId, workspaceId);
+    const workspaceId = dto.workspaceId ?? await this.workspacesService.ensureDefaultWorkspace(userId);
     const warnings: string[] = [];
     const payload = dto.payload;
+
+    if (Array.isArray(payload.values) && !Array.isArray(payload.item)) {
+      await this.permissions.requireEnvironmentManage(userId, workspaceId);
+      const environment = await this.importPostmanEnvironment(userId, workspaceId, payload, dto.name);
+
+      return {
+        environmentId: environment.id,
+        importedCount: 0,
+        importedVariableCount: environment.variables?.length ?? 0,
+        skippedCount: warnings.length,
+        warnings,
+      };
+    }
+
+    await this.permissions.requireCollectionWrite(userId, workspaceId);
     const collectionName =
       dto.name ??
       this.readString(payload.info, "name") ??
@@ -59,13 +87,158 @@ export class ImportExportService {
       Array.isArray(payload.item) ? payload.item : [],
       warnings,
     );
+    const importedVariableCount = await this.importCollectionVariables(
+      userId,
+      workspaceId,
+      Array.isArray(payload.variable) ? payload.variable : [],
+    );
 
     return {
       collectionId: collection.id,
       importedCount,
+      importedVariableCount,
       skippedCount: warnings.length,
       warnings,
     };
+  }
+
+  private async importPostmanEnvironment(
+    userId: string,
+    workspaceId: string,
+    payload: Record<string, unknown>,
+    name?: string,
+  ): Promise<EnvironmentEntity> {
+    const environmentName =
+      name ??
+      this.readString(payload, "name") ??
+      this.readString(payload, "info.name") ??
+      "Imported Postman Environment";
+    const variables = this.parsePostmanVariables(
+      Array.isArray(payload.values) ? payload.values : [],
+    );
+
+    const environment = await this.environmentRepository.save(
+      this.environmentRepository.create({
+        userId,
+        workspaceId,
+        name: environmentName,
+        isGlobal: false,
+      }),
+    );
+
+    if (variables.length) {
+      environment.variables = await this.variableRepository.save(
+        this.variableRepository.create(
+          variables.map((variable) => ({
+            environmentId: environment.id,
+            ...variable,
+          })),
+        ),
+      );
+    } else {
+      environment.variables = [];
+    }
+
+    return environment;
+  }
+
+  private async importCollectionVariables(
+    userId: string,
+    workspaceId: string,
+    rawVariables: unknown[],
+  ): Promise<number> {
+    const variables = this.parsePostmanVariables(rawVariables);
+    if (!variables.length) {
+      return 0;
+    }
+
+    await this.permissions.requireEnvironmentManage(userId, workspaceId);
+    const globalEnvironment = await this.ensureGlobalEnvironment(userId, workspaceId);
+
+    for (const variable of variables) {
+      const existing = await this.variableRepository.findOne({
+        where: {
+          environmentId: globalEnvironment.id,
+          key: variable.key,
+        },
+      });
+
+      if (existing) {
+        Object.assign(existing, variable);
+        await this.variableRepository.save(existing);
+        continue;
+      }
+
+      await this.variableRepository.save(
+        this.variableRepository.create({
+          environmentId: globalEnvironment.id,
+          ...variable,
+        }),
+      );
+    }
+
+    return variables.length;
+  }
+
+  private async ensureGlobalEnvironment(
+    userId: string,
+    workspaceId: string,
+  ): Promise<EnvironmentEntity> {
+    const existing = await this.environmentRepository.findOne({
+      where: { workspaceId, isGlobal: true },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return this.environmentRepository.save(
+      this.environmentRepository.create({
+        userId,
+        workspaceId,
+        name: "Global",
+        isGlobal: true,
+      }),
+    );
+  }
+
+  private parsePostmanVariables(rawVariables: unknown[]): Array<{
+    key: string;
+    value: string;
+    enabled: boolean;
+    description: string | null;
+  }> {
+    return rawVariables
+      .map((rawVariable) => {
+        const variable = rawVariable as PostmanVariable;
+        const key = typeof variable.key === "string" ? variable.key.trim() : "";
+
+        if (!key) {
+          return null;
+        }
+
+        return {
+          key,
+          value:
+            variable.value === undefined || variable.value === null
+              ? ""
+              : String(variable.value),
+          enabled:
+            typeof variable.enabled === "boolean"
+              ? variable.enabled
+              : variable.disabled !== true,
+          description:
+            typeof variable.description === "string"
+              ? variable.description
+              : null,
+        };
+      })
+      .filter(Boolean) as Array<{
+        key: string;
+        value: string;
+        enabled: boolean;
+        description: string | null;
+      }>;
   }
 
   private async importItems(

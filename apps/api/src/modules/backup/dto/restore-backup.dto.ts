@@ -7,4 +7,8 @@ export class RestoreBackupDto {
   @IsOptional()
   @IsString()
   mode?: "replace" | "merge";
+
+  @IsOptional()
+  @IsString()
+  workspaceId?: string;
 }

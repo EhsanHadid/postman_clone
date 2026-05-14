@@ -2,8 +2,8 @@ apiVersion: v2
 name: postman-clone
 description: A production-ready Helm chart for the Postman Clone API client — React + Vite frontend, NestJS backend, and MySQL database.
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 1.0.2
+appVersion: "1.0.2"
 keywords:
   - postman
   - api-client

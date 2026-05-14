@@ -5,6 +5,7 @@ import { useCollectionsStore } from "../../store/collectionsStore";
 import { useCookiesStore } from "../../store/cookiesStore";
 import { useEnvironmentsStore } from "../../store/environmentsStore";
 import { useHistoryStore } from "../../store/historyStore";
+import { useWorkspaceStore } from "../../store/workspaceStore";
 
 interface ImportExportControlsProps {
   variant?: "menu" | "toolbar";
@@ -23,6 +24,7 @@ export function ImportExportControls({
   const fetchEnvironments = useEnvironmentsStore((state) => state.fetchEnvironments);
   const fetchHistory = useHistoryStore((state) => state.fetchHistory);
   const fetchCookies = useCookiesStore((state) => state.fetchCookies);
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
 
   const refreshAll = async () => {
     await Promise.all([
@@ -39,12 +41,16 @@ export function ImportExportControls({
     }
 
     const payload = await readJsonFile(file);
-    await api.importPostman({ payload });
+    if (!activeWorkspaceId) {
+      return;
+    }
+
+    await api.importPostman({ payload, workspaceId: activeWorkspaceId });
     await refreshAll();
   };
 
   const exportBackup = async () => {
-    const payload = await api.exportBackup();
+    const payload = await api.exportBackup(activeWorkspaceId);
     downloadJson(`postman-clone-backup-${Date.now()}.json`, payload);
   };
 
@@ -54,7 +60,11 @@ export function ImportExportControls({
     }
 
     const payload = await readJsonFile(file);
-    await api.restoreBackup({ payload, mode: "replace" });
+    if (!activeWorkspaceId) {
+      return;
+    }
+
+    await api.restoreBackup({ payload, mode: "replace", workspaceId: activeWorkspaceId });
     await refreshAll();
   };
 

@@ -161,7 +161,7 @@ export function VariableAwareInput({
     }
 
     window.requestAnimationFrame(() => setEditorCaret(caretIndex));
-  }, [focused, value]);
+  }, [caretIndex, focused, value]);
 
   return (
     <div className={`variable-input ${wrapperClassName ?? ""}`.trim()}>

@@ -2,6 +2,8 @@ import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import {
   CollectionEntity,
+  EnvironmentEntity,
+  EnvironmentVariableEntity,
   FolderEntity,
   RequestEntity,
 } from "../../database/entities";
@@ -11,7 +13,13 @@ import { ImportExportService } from "./import-export.service";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CollectionEntity, FolderEntity, RequestEntity]),
+    TypeOrmModule.forFeature([
+      CollectionEntity,
+      EnvironmentEntity,
+      EnvironmentVariableEntity,
+      FolderEntity,
+      RequestEntity,
+    ]),
     WorkspacesModule,
   ],
   controllers: [ImportExportController],

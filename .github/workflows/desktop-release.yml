@@ -34,7 +34,7 @@ jobs:
         run: |
           $version = (Get-Content package.json | ConvertFrom-Json).version
           "version=$version" >> $env:GITHUB_OUTPUT
-          "version_tag=v$version" >> $env:GITHUB_OUTPUT
+          "version_tag=v-$version" >> $env:GITHUB_OUTPUT
 
       - name: Validate release tag version
         if: startsWith(github.ref, 'refs/tags/')

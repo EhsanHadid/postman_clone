@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { SessionAuthGuard } from "../../common/guards/session-auth.guard";
 import { UserEntity } from "../../database/entities/user.entity";
@@ -11,8 +11,11 @@ export class BackupController {
   constructor(private readonly backupService: BackupService) {}
 
   @Get("export")
-  exportWorkspace(@CurrentUser() user: UserEntity) {
-    return this.backupService.exportWorkspace(user.id);
+  exportWorkspace(
+    @CurrentUser() user: UserEntity,
+    @Query("workspaceId") workspaceId?: string,
+  ) {
+    return this.backupService.exportWorkspace(user.id, workspaceId);
   }
 
   @Post("restore")

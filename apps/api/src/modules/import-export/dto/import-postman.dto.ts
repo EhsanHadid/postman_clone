@@ -7,4 +7,8 @@ export class ImportPostmanDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  workspaceId?: string;
 }

@@ -8,7 +8,6 @@ import type {
   HttpMethod,
   KeyValueItem,
   LocalHistoryCreateInput,
-  LocalHistoryEntry,
   LocalRequestBodyType,
   LocalRequestInput,
   MultipartFormValue,
@@ -80,28 +79,6 @@ function getEnvironmentVariables(
   }
 
   return variables;
-}
-
-function findFolder(
-  folders: CollectionTreeFolder[],
-  folderId: string | null | undefined,
-): CollectionTreeFolder | null {
-  if (!folderId) {
-    return null;
-  }
-
-  for (const folder of folders) {
-    if (folder.id === folderId) {
-      return folder;
-    }
-
-    const nested = findFolder(folder.folders, folderId);
-    if (nested) {
-      return nested;
-    }
-  }
-
-  return null;
 }
 
 function findFolderPath(

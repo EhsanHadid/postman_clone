@@ -1,0 +1,118 @@
+name: Deploy Mahac
+
+on:
+  workflow_dispatch:
+    inputs:
+      desktop_download_url:
+        description: "Optional desktop app download URL. Leave blank to use the latest GitHub release asset."
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["Docker Push", "Desktop Release"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-mahac
+  cancel-in-progress: false
+
+env:
+  DEFAULT_DEPLOY_PATH: postman-clone/helm/postman-clone
+
+jobs:
+  deploy:
+    name: Deploy to Mahac Kubernetes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Resolve desktop download URL
+        id: desktop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_DESKTOP_DOWNLOAD_URL: ${{ github.event.inputs.desktop_download_url || '' }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Web/API deployments reuse the latest published desktop release unless
+          # a manual dispatch explicitly provides a different download URL.
+          if [ -n "${INPUT_DESKTOP_DOWNLOAD_URL}" ]; then
+            desktop_download_url="${INPUT_DESKTOP_DOWNLOAD_URL}"
+          else
+            desktop_download_url="$(
+              curl -fsSL \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/${REPOSITORY}/releases/latest" |
+              jq -r '
+                .assets
+                | map(select(.name | test("(?i)(windows|win).*x64.*\\.exe$|\\.exe$")))
+                | .[0].browser_download_url // empty
+              '
+            )"
+          fi
+
+          if [ -z "${desktop_download_url}" ]; then
+            echo "No desktop .exe asset was found on the latest GitHub release." >&2
+            exit 1
+          fi
+
+          echo "desktop_download_url=${desktop_download_url}" >> "${GITHUB_OUTPUT}"
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DEPLOY_SSH_HOST}" ]; then
+            echo "Missing DEPLOY_SSH_HOST secret." >&2
+            exit 1
+          fi
+
+          if [ -z "${DEPLOY_SSH_KEY}" ]; then
+            echo "Missing DEPLOY_SSH_KEY secret." >&2
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${DEPLOY_SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${DEPLOY_SSH_PORT}" "${DEPLOY_SSH_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Deploy Helm chart over SSH
+        env:
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+          DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH || env.DEFAULT_DEPLOY_PATH }}
+          DESKTOP_APP_DOWNLOAD_URL: ${{ steps.desktop.outputs.desktop_download_url }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DEPLOY_SSH_USER}" ]; then
+            echo "Missing DEPLOY_SSH_USER secret." >&2
+            exit 1
+          fi
+
+          ssh -i ~/.ssh/deploy_key -p "${DEPLOY_SSH_PORT}" "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
+            "DEPLOY_PATH='${DEPLOY_PATH}' DESKTOP_APP_DOWNLOAD_URL='${DESKTOP_APP_DOWNLOAD_URL}' bash -s" <<'EOF'
+          set -euo pipefail
+
+          export KUBECONFIG=~/.kube/config
+          cd "${DEPLOY_PATH}"
+
+          helm dependency update
+          helm upgrade --install postman-clone . \
+            -f values-mahac.yaml \
+            -n postman-clone \
+            --create-namespace \
+            --set-string "api.env.DESKTOP_APP_DOWNLOAD_URL=${DESKTOP_APP_DOWNLOAD_URL}"
+          EOF

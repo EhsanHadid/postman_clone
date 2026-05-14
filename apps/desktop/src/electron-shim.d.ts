@@ -22,6 +22,6 @@ declare module "electron" {
   };
 
   export const ipcRenderer: {
-    invoke(channel: string, ...args: unknown[]): Promise<any>;
+    invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T>;
   };
 }

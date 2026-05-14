@@ -3,6 +3,7 @@ import { Drawer } from "../../components/Drawer";
 import { useDialogStore } from "../../store/dialogStore";
 import { useEnvironmentsStore } from "../../store/environmentsStore";
 import { useLayoutStore } from "../../store/layoutStore";
+import { useWorkspaceStore } from "../../store/workspaceStore";
 
 export function EnvironmentDrawer() {
   const open = useLayoutStore((state) => state.showEnvironments);
@@ -11,6 +12,7 @@ export function EnvironmentDrawer() {
   const activeEnvironmentId = useEnvironmentsStore((state) => state.activeEnvironmentId);
   const setActiveEnvironment = useEnvironmentsStore((state) => state.setActiveEnvironment);
   const fetchEnvironments = useEnvironmentsStore((state) => state.fetchEnvironments);
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
   const openTextDialog = useDialogStore((state) => state.openTextDialog);
   const openKeyValueDialog = useDialogStore((state) => state.openKeyValueDialog);
   const renameEnvironment = (environmentId: string, currentName: string) => {
@@ -34,6 +36,10 @@ export function EnvironmentDrawer() {
   };
 
   const createEnvironment = async () => {
+    if (!activeWorkspaceId) {
+      return;
+    }
+
     openTextDialog({
       title: "New Environment",
       description: "Create an environment for API variables and tokens.",
@@ -41,7 +47,7 @@ export function EnvironmentDrawer() {
       initialValue: "New Environment",
       submitLabel: "Create Environment",
       onSubmit: async (name) => {
-        await api.environments.create({ name });
+        await api.environments.createInWorkspace(activeWorkspaceId, { name });
         await fetchEnvironments();
       },
     });

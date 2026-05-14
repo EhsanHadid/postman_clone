@@ -20,6 +20,7 @@ import { useDialogStore } from "../../store/dialogStore";
 import { useEnvironmentsStore } from "../../store/environmentsStore";
 import { useHistoryStore } from "../../store/historyStore";
 import { useTabsStore } from "../../store/tabsStore";
+import { useWorkspaceStore } from "../../store/workspaceStore";
 
 const editorTabs: Array<{ key: EditorTabKey; label: string }> = [
   { key: "params", label: "Params" },
@@ -197,6 +198,7 @@ export function RequestEditor() {
   const fetchCollections = useCollectionsStore((state) => state.fetchCollections);
   const fetchHistory = useHistoryStore((state) => state.fetchHistory);
   const fetchAppConfig = useAppConfigStore((state) => state.fetchAppConfig);
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
   const openSaveLocationDialog = useDialogStore((state) => state.openSaveLocationDialog);
   const openNoticeDialog = useDialogStore((state) => state.openNoticeDialog);
   const activeDialog = useDialogStore((state) => state.dialog);
@@ -242,7 +244,11 @@ export function RequestEditor() {
     const name = location?.name ?? draft.name;
 
     if (location?.newCollectionName?.trim()) {
-      const createdCollection = await api.collections.create({
+      if (!activeWorkspaceId) {
+        throw new Error("Choose a workspace before creating a collection.");
+      }
+
+      const createdCollection = await api.collections.createInWorkspace(activeWorkspaceId, {
         name: location.newCollectionName.trim(),
       });
       collectionId = createdCollection.id;
@@ -254,7 +260,7 @@ export function RequestEditor() {
 
     markSaved(activeTab.id, saved);
     await fetchCollections();
-  }, [activeTab, draft, fetchCollections, markSaved]);
+  }, [activeTab, activeWorkspaceId, draft, fetchCollections, markSaved]);
 
   const saveRequest = useCallback(async () => {
     if (!activeTab || !draft) {

@@ -1,6 +1,6 @@
 {
   "name": "@postman-clone/web",
-  "version": "0.1.0",
+  "version": "1.0.2",
   "private": true,
   "scripts": {
     "dev": "vite",
@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
-    "@postman-clone/shared-types": "0.1.0",
-    "@postman-clone/shared-utils": "0.1.0",
+    "@postman-clone/shared-types": "1.0.2",
+    "@postman-clone/shared-utils": "1.0.2",
     "monaco-editor": "^0.52.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

@@ -1,6 +1,6 @@
 {
   "name": "@postman-clone/desktop",
-  "version": "0.1.0",
+  "version": "1.0.2",
   "description": "Postman Clone desktop API client",
   "author": "Postman Clone",
   "private": true,
@@ -13,8 +13,8 @@
     "package": "corepack yarn build && corepack yarn copy-renderer && node scripts/package.mjs"
   },
   "dependencies": {
-    "@postman-clone/shared-types": "0.1.0",
-    "@postman-clone/shared-utils": "0.1.0"
+    "@postman-clone/shared-types": "1.0.2",
+    "@postman-clone/shared-utils": "1.0.2"
   },
   "devDependencies": {
     "electron": "30.5.1",
