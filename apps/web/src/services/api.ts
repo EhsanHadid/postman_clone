@@ -12,13 +12,10 @@ import type {
   WorkspaceMemberDefinition,
   WorkspaceRole,
 } from "@postman-clone/shared-types";
+import { getApiBaseUrl, isDesktopRenderer } from "./runtime";
 
-const apiBase =
-  import.meta.env.VITE_API_BASE_URL ??
-  (window.location.protocol === "file:" ? "http://localhost:4000/api" : "/api");
+const apiBase = getApiBaseUrl();
 const desktopSessionKey = "postman-clone-desktop-session";
-
-const isDesktopRenderer = () => window.location.protocol === "file:";
 
 function getDesktopSessionToken(): string | null {
   if (!isDesktopRenderer()) {

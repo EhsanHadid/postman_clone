@@ -343,6 +343,16 @@ export function DialogHost() {
               Cancel
             </button>
           ) : null}
+          {dialog.kind === "notice" && dialog.actionUrl ? (
+            <a
+              className="button button-subtle"
+              href={dialog.actionUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {dialog.actionLabel ?? "Open link"}
+            </a>
+          ) : null}
           <button
             className="button button-primary"
             disabled={submitting}

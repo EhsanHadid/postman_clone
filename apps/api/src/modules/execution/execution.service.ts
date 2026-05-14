@@ -310,6 +310,8 @@ export class ExecutionService {
     let resolvedUrl = mutableRequest.url;
     let transportUrl = this.resolveTransportUrl(mutableRequest.url);
 
+    this.assertPublicRequestUrl(resolvedUrl);
+
     if (request.protocolType === "trpc") {
       if (mutableRequest.method !== "GET" && mutableRequest.method !== "POST") {
         throw new BadRequestException(
@@ -322,6 +324,8 @@ export class ExecutionService {
         transportUrl,
         request.trpcProcedurePath ?? "",
       );
+
+      this.assertPublicRequestUrl(resolvedUrl);
 
       if (mutableRequest.method === "GET") {
         resolvedUrl = this.trpcService.appendInputParam(resolvedUrl, mutableRequest.body || "{}");
@@ -497,12 +501,58 @@ export class ExecutionService {
     }
   }
 
+  private assertPublicRequestUrl(rawUrl: string): void {
+    let url: URL;
+
+    try {
+      url = new URL(rawUrl);
+    } catch {
+      throw new BadRequestException("Request URL must be a valid absolute URL.");
+    }
+
+    if (this.isPrivateNetworkHostname(url.hostname)) {
+      throw new BadRequestException(
+        "Online execution cannot reach localhost or private network addresses. Use the desktop app to send this request from your machine.",
+      );
+    }
+  }
+
   private isLoopbackHostname(hostname: string): boolean {
     return (
       hostname === "localhost" ||
       hostname === "127.0.0.1" ||
       hostname === "::1" ||
       hostname === "[::1]"
+    );
+  }
+
+  private isPrivateNetworkHostname(hostname: string): boolean {
+    const normalizedHostname = hostname.toLowerCase();
+
+    if (this.isLoopbackHostname(normalizedHostname)) {
+      return true;
+    }
+
+    const ipv4Parts = normalizedHostname.split(".").map((part) => Number(part));
+    if (
+      ipv4Parts.length === 4 &&
+      ipv4Parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)
+    ) {
+      const [first, second] = ipv4Parts;
+      return (
+        first === 10 ||
+        first === 127 ||
+        (first === 172 && second >= 16 && second <= 31) ||
+        (first === 192 && second === 168) ||
+        (first === 169 && second === 254)
+      );
+    }
+
+    return (
+      normalizedHostname.endsWith(".local") ||
+      normalizedHostname.endsWith(".localhost") ||
+      normalizedHostname.endsWith(".internal") ||
+      normalizedHostname.endsWith(".lan")
     );
   }
 

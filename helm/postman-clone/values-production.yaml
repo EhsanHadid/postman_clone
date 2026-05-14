@@ -24,6 +24,7 @@ api:
   env:
     APP_ORIGIN: "https://postman-clone.your-domain.com"
     DB_SYNCHRONIZE: "false"
+    DESKTOP_APP_DOWNLOAD_URL: ""
 
   secrets:
     # Recommended: reference a pre-existing K8s Secret managed by

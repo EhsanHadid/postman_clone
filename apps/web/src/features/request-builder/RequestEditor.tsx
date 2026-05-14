@@ -11,6 +11,8 @@ import { CodeEditor } from "../../components/CodeEditor";
 import { KeyValueTable } from "../../components/KeyValueTable";
 import { api } from "../../services/api";
 import { localDesktop } from "../../services/localDesktop";
+import { isDesktopRenderer, isPrivateNetworkUrl } from "../../services/runtime";
+import { useAppConfigStore } from "../../store/appConfigStore";
 import { useCollectionsStore } from "../../store/collectionsStore";
 import { useDialogStore } from "../../store/dialogStore";
 import { useEnvironmentsStore } from "../../store/environmentsStore";
@@ -156,6 +158,7 @@ export function RequestEditor() {
   const collections = useCollectionsStore((state) => state.collections);
   const fetchCollections = useCollectionsStore((state) => state.fetchCollections);
   const fetchHistory = useHistoryStore((state) => state.fetchHistory);
+  const fetchAppConfig = useAppConfigStore((state) => state.fetchAppConfig);
   const openSaveLocationDialog = useDialogStore((state) => state.openSaveLocationDialog);
   const openNoticeDialog = useDialogStore((state) => state.openNoticeDialog);
   const activeDialog = useDialogStore((state) => state.dialog);
@@ -258,7 +261,23 @@ export function RequestEditor() {
     }
 
     if (activeTab.isSending) {
-      await localDesktop.execution.cancel(activeTab.id);
+      if (isDesktopRenderer()) {
+        await localDesktop.execution.cancel(activeTab.id);
+      }
+      return;
+    }
+
+    if (!isDesktopRenderer() && isPrivateNetworkUrl(draft.url)) {
+      await fetchAppConfig();
+      const downloadUrl = useAppConfigStore.getState().desktopDownloadUrl;
+      openNoticeDialog({
+        title: "Desktop app required",
+        description:
+          "Browser-based online execution cannot reach localhost or private network addresses. Use the desktop app to send this request from your machine.",
+        confirmLabel: "Close",
+        actionLabel: "Download Desktop",
+        actionUrl: downloadUrl ?? undefined,
+      });
       return;
     }
 
@@ -272,11 +291,13 @@ export function RequestEditor() {
     setActiveTabSending(activeTab.id, true);
 
     try {
-      const response = await localDesktop.execution.send(payload, {
-        environments,
-        collections,
-        localRequestId: activeTab.id,
-      });
+      const response = isDesktopRenderer()
+        ? await localDesktop.execution.send(payload, {
+            environments,
+            collections,
+            localRequestId: activeTab.id,
+          })
+        : await api.execution.send(payload);
       const elapsedMs = Date.now() - startedAt;
 
       if (elapsedMs < 120) {
@@ -305,6 +326,7 @@ export function RequestEditor() {
     collections,
     draft,
     environments,
+    fetchAppConfig,
     fetchHistory,
     openNoticeDialog,
     setActiveTabSending,

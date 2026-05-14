@@ -3,8 +3,7 @@ import { Navigate } from "react-router-dom";
 import { AuthForm } from "../features/auth/AuthForm";
 import { useAppConfigStore } from "../store/appConfigStore";
 import { useAuthStore } from "../store/authStore";
-
-const isDesktopRenderer = window.location.protocol === "file:";
+import { isDesktopRenderer } from "../services/runtime";
 
 export function LoginPage() {
   const user = useAuthStore((state) => state.user);
@@ -29,7 +28,7 @@ export function LoginPage() {
             HTTP and tRPC execution run through the NestJS backend so cookies, scripts,
             history, and environment interpolation stay centralized.
           </p>
-          {!isDesktopRenderer && desktopDownloadUrl ? (
+          {!isDesktopRenderer() && desktopDownloadUrl ? (
             <a
               className="button button-subtle login-page__download"
               href={desktopDownloadUrl}

@@ -5,6 +5,8 @@ interface NoticeDialogConfig {
   title: string;
   description: string;
   confirmLabel?: string;
+  actionLabel?: string;
+  actionUrl?: string;
 }
 
 interface TextDialogConfig {

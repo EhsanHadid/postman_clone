@@ -16,9 +16,9 @@ import { useAppConfigStore } from "../store/appConfigStore";
 import { useEnvironmentsStore } from "../store/environmentsStore";
 import { useLayoutStore } from "../store/layoutStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
+import { isDesktopRenderer } from "../services/runtime";
 
 const brandLogoUrl = `${import.meta.env.BASE_URL}assets/brand/logo.svg`;
-const isDesktopRenderer = window.location.protocol === "file:";
 
 export function AppShell() {
   const [workspaceChooserOpen, setWorkspaceChooserOpen] = useState(false);
@@ -61,7 +61,7 @@ export function AppShell() {
         </div>
 
         <div className="app-header__actions">
-          {!isDesktopRenderer && desktopDownloadUrl ? (
+          {!isDesktopRenderer() && desktopDownloadUrl ? (
             <a
               className="chrome-button app-header__download"
               href={desktopDownloadUrl}
@@ -161,7 +161,7 @@ export function AppShell() {
       </div>
 
       <footer className="statusbar">
-        <span>Local execution</span>
+        <span>{isDesktopRenderer() ? "Local execution" : "Online execution"}</span>
         <span>{activeEnvironment ? `Env: ${activeEnvironment.name}` : "No environment"}</span>
       </footer>
 

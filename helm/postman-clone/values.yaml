@@ -39,6 +39,7 @@ api:
     DB_SYNCHRONIZE: "false"
     SESSION_COOKIE_NAME: postman_clone_session
     DOCKER_LOCALHOST_ALIAS: ""
+    DESKTOP_APP_DOWNLOAD_URL: ""
 
   # -- Sensitive values — reference a Secret or set directly ------------------
   #    When existingSecret is set, DB_USER / DB_PASSWORD keys are read from it.
