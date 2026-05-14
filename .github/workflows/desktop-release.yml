@@ -59,11 +59,11 @@ jobs:
         run: yarn workspace @postman-clone/desktop copy-renderer
 
       - name: Package Windows installer
+        working-directory: apps/desktop
         shell: pwsh
         run: |
           $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
-          node node_modules/electron-builder/out/cli/cli.js `
-            --projectDir apps/desktop `
+          node ../../node_modules/electron-builder/out/cli/cli.js `
             --win nsis `
             --x64 `
             --config.directories.output=release-desktop
