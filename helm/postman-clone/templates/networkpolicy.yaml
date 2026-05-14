@@ -1,0 +1,74 @@
+{{- if .Values.networkPolicy.enabled }}
+---
+# Allow web → api traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "postman-clone.api.fullname" . }}-allow-web
+  namespace: {{ include "postman-clone.namespace" . }}
+  labels:
+    {{- include "postman-clone.labels" . | nindent 4 }}
+    {{- include "postman-clone.api.selectorLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "postman-clone.api.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "postman-clone.web.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.api.env.PORT | int }}
+          protocol: TCP
+    # Allow ingress controller traffic
+    {{- if .Values.ingress.enabled }}
+    - from:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - port: {{ .Values.api.env.PORT | int }}
+          protocol: TCP
+    {{- end }}
+---
+# Allow api → mysql traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "postman-clone.api.fullname" . }}-allow-mysql
+  namespace: {{ include "postman-clone.namespace" . }}
+  labels:
+    {{- include "postman-clone.labels" . | nindent 4 }}
+    {{- include "postman-clone.api.selectorLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "postman-clone.api.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        {{- if .Values.mysql.enabled }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mysql
+              app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- else }}
+        # External DB — allow all egress on DB port
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        {{- end }}
+      ports:
+        - port: {{ include "postman-clone.databasePort" . | int }}
+          protocol: TCP
+    # Allow DNS resolution
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+{{- end }}

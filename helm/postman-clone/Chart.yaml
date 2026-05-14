@@ -1,0 +1,21 @@
+apiVersion: v2
+name: postman-clone
+description: A production-ready Helm chart for the Postman Clone API client — React + Vite frontend, NestJS backend, and MySQL database.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - postman
+  - api-client
+  - nestjs
+  - react
+  - mysql
+home: https://github.com/EhsanHadid/postman_clone
+maintainers:
+  - name: EhsanHadid
+
+dependencies:
+  - name: mysql
+    version: "~11.1"
+    repository: https://charts.bitnami.com/bitnami
+    condition: mysql.enabled

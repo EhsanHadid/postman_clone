@@ -1,0 +1,114 @@
+# =============================================================================
+# Production overrides — apply with:
+#   helm install postman-clone ./helm/postman-clone \
+#     -f helm/postman-clone/values-production.yaml \
+#     --set mysql.auth.rootPassword=$DB_ROOT_PW \
+#     --set mysql.auth.password=$DB_PW \
+#     --set api.secrets.dbPassword=$DB_PW
+#
+# Or better — use externally managed secrets:
+#   helm install postman-clone ./helm/postman-clone \
+#     -f helm/postman-clone/values-production.yaml \
+#     --set mysql.auth.existingSecret=my-mysql-secret \
+#     --set api.secrets.existingSecret=my-api-db-secret
+# =============================================================================
+
+api:
+  replicaCount: 3
+
+  image:
+    registry: ghcr.io          # your container registry
+    repository: your-org/postman-clone-api
+    tag: "0.1.0"
+
+  env:
+    APP_ORIGIN: "https://postman-clone.your-domain.com"
+    DB_SYNCHRONIZE: "false"
+
+  secrets:
+    # Recommended: reference a pre-existing K8s Secret managed by
+    # Sealed Secrets, External Secrets Operator, or your CI/CD pipeline.
+    existingSecret: postman-clone-db-credentials
+    # dbUser and dbPassword are ignored when existingSecret is set.
+    # The referenced Secret must contain keys: DB_USER, DB_PASSWORD.
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+web:
+  replicaCount: 3
+
+  image:
+    registry: ghcr.io
+    repository: your-org/postman-clone-web
+    tag: "0.1.0"
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 8
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts:
+    - host: postman-clone.your-domain.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: api
+        - path: /
+          pathType: Prefix
+          service: web
+  tls:
+    - secretName: postman-clone-tls
+      hosts:
+        - postman-clone.your-domain.com
+
+mysql:
+  enabled: true
+  auth:
+    # Passwords must be supplied via --set or existingSecret.
+    # Do NOT commit passwords to version control.
+    rootPassword: ""
+    database: postman_clone
+    username: postman
+    password: ""
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: gp3               # adjust to your cloud provider
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+
+networkPolicy:
+  enabled: true

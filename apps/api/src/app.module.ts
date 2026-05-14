@@ -14,6 +14,7 @@ import { ExecutionModule } from "./modules/execution/execution.module";
 import { ImportExportModule } from "./modules/import-export/import-export.module";
 import { BackupModule } from "./modules/backup/backup.module";
 import { TrpcModule } from "./modules/trpc/trpc.module";
+import { HealthController } from "./modules/health/health.controller";
 import { WorkspacesModule } from "./modules/workspaces/workspaces.module";
 import { AppConfigModule } from "./modules/app-config/app-config.module";
 
@@ -41,5 +42,6 @@ import { AppConfigModule } from "./modules/app-config/app-config.module";
     BackupModule,
     AppConfigModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}
