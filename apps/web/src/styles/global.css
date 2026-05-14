@@ -1023,20 +1023,16 @@ textarea::placeholder {
   white-space: nowrap;
 }
 
-.workbench-tabs__tab-parent {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
 .workbench-tabs__tab-name {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.workbench-tabs__method {
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .workbench-tabs__dirty {

@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { CollectionTree, CollectionTreeFolder, RequestDefinition } from "@postman-clone/shared-types";
+import type {
+  CollectionTree,
+  CollectionTreeFolder,
+  FolderDefinition,
+  RequestDefinition,
+} from "@postman-clone/shared-types";
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -223,6 +228,40 @@ function collectCollectionIds(collections: CollectionTree[]): string[] {
   return collections.map((collection) => collection.id);
 }
 
+function findFolderById(
+  folders: CollectionTreeFolder[],
+  folderId: string | null,
+): CollectionTreeFolder | null {
+  if (!folderId) {
+    return null;
+  }
+
+  for (const folder of folders) {
+    if (folder.id === folderId) {
+      return folder;
+    }
+
+    const childFolder = findFolderById(folder.folders, folderId);
+    if (childFolder) {
+      return childFolder;
+    }
+  }
+
+  return null;
+}
+
+function parseRequestPath(rawName: string) {
+  const parts = rawName
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return {
+    folderNames: parts.slice(0, -1),
+    requestName: parts.at(-1) ?? rawName.trim(),
+  };
+}
+
 function getFolderStateStorageKey(workspaceId: string | null) {
   return `postman-clone-folder-expansion:${workspaceId ?? "global"}`;
 }
@@ -418,10 +457,37 @@ export function CollectionsSidebar() {
       initialValue: "New Request",
       submitLabel: "Create Request",
       onSubmit: async (name) => {
+        const { folderNames, requestName } = parseRequestPath(name);
+        const collection = collections.find((item) => item.id === collectionId);
+        let targetFolderId = folderId;
+        let currentFolders = folderId
+          ? findFolderById(collection?.folders ?? [], folderId)?.folders ?? []
+          : collection?.folders ?? [];
+
+        for (const folderName of folderNames) {
+          const existingFolder = currentFolders.find(
+            (folder) => folder.name.trim().toLowerCase() === folderName.toLowerCase(),
+          );
+
+          if (existingFolder) {
+            targetFolderId = existingFolder.id;
+            currentFolders = existingFolder.folders;
+            continue;
+          }
+
+          const createdFolder = await api.folders.create({
+            collectionId,
+            parentFolderId: targetFolderId,
+            name: folderName,
+          }) as FolderDefinition;
+          targetFolderId = createdFolder.id;
+          currentFolders = [];
+        }
+
         const request = await api.requests.create({
           collectionId,
-          folderId,
-          name,
+          folderId: targetFolderId,
+          name: requestName,
           protocolType: "http",
           method: "GET",
           url: "",

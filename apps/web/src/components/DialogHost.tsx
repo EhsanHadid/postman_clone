@@ -166,6 +166,12 @@ export function DialogHost() {
       <div
         className="dialog card"
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey && !submitting) {
+            event.preventDefault();
+            void submit();
+          }
+        }}
         role="dialog"
         aria-modal="true"
       >
