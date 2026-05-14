@@ -1,6 +1,6 @@
 import { IsIn, IsObject, IsOptional, IsString } from "class-validator";
 
-export class ImportPostmanDto {
+export class ImportClientDto {
   @IsObject()
   payload!: Record<string, unknown>;
 

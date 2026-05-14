@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -119,6 +120,7 @@ export class CollectionsService {
     dto: CreateCollectionDto,
   ): Promise<CollectionEntity> {
     await this.permissions.requireCollectionWrite(userId, workspaceId);
+    await this.assertUniqueName(workspaceId, dto.name);
 
     return this.collectionRepository.save(
       this.collectionRepository.create({
@@ -140,6 +142,9 @@ export class CollectionsService {
   ): Promise<CollectionEntity> {
     const collection = await this.findOwned(userId, collectionId);
     await this.permissions.requireCollectionWrite(userId, collection.workspaceId);
+    if (dto.name && dto.name !== collection.name) {
+      await this.assertUniqueName(collection.workspaceId, dto.name, collection.id);
+    }
 
     Object.assign(collection, {
       name: dto.name ?? collection.name,
@@ -168,5 +173,23 @@ export class CollectionsService {
     }
 
     return collection;
+  }
+
+  private async assertUniqueName(
+    workspaceId: string,
+    name: string,
+    ignoreCollectionId?: string,
+  ) {
+    const normalizedName = name.trim().toLowerCase();
+    const collections = await this.collectionRepository.find({ where: { workspaceId } });
+    const duplicate = collections.find(
+      (collection) =>
+        collection.id !== ignoreCollectionId &&
+        collection.name.trim().toLowerCase() === normalizedName,
+    );
+
+    if (duplicate) {
+      throw new BadRequestException("A collection with this name already exists in this workspace.");
+    }
   }
 }

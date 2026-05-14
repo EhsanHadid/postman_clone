@@ -227,6 +227,7 @@ textarea::placeholder {
 .workbench-tabs__tab:hover,
 .sidebar-tree__request:hover,
 .sidebar-tree__folder:hover,
+.sidebar-tree__request-row:hover .sidebar-tree__request,
 .sidebar-list__item:hover,
 .menu-action:hover {
   background: var(--surface-hover);
@@ -241,6 +242,15 @@ textarea::placeholder {
 
 .button-primary:hover {
   background: var(--accent-strong);
+}
+
+.button-danger {
+  background: var(--danger);
+  color: #1d130f;
+}
+
+.button-danger:hover {
+  background: #fca5a5;
 }
 
 .button-subtle {
@@ -775,10 +785,10 @@ textarea::placeholder {
 }
 
 .sidebar-tree__collection-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
 }
 
 .sidebar-tree__collection-title-wrap {
@@ -803,6 +813,12 @@ textarea::placeholder {
   align-content: start;
 }
 
+.sidebar-tree__collection-body {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
 .sidebar-tree__folder,
 .sidebar-tree__request,
 .sidebar-list__item {
@@ -821,6 +837,7 @@ textarea::placeholder {
   grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
+  cursor: pointer;
 }
 
 .sidebar-tree__request {
@@ -828,6 +845,19 @@ textarea::placeholder {
   grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
   gap: 6px;
+}
+
+.sidebar-tree__request-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.sidebar-tree__request-row.is-active .sidebar-tree__request {
+  border-color: rgba(255, 108, 55, 0.45);
+  background: var(--accent-soft);
+  color: var(--text);
 }
 
 .sidebar-tree__item-icon,
@@ -849,7 +879,38 @@ textarea::placeholder {
 .sidebar-tree__actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
+}
+
+.sidebar-tree__header-actions {
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sidebar-tree__action {
+  color: var(--text-muted);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sidebar-tree__delete-action {
+  color: #fca5a5;
+}
+
+.sidebar-tree__collection-header:hover .sidebar-tree__header-actions,
+.sidebar-tree__collection-header:hover .sidebar-tree__action,
+.sidebar-tree__folder:hover .sidebar-tree__action,
+.sidebar-tree__request-row:hover .sidebar-tree__action,
+.sidebar-tree__header-actions:focus-within,
+.sidebar-tree__folder:focus-within .sidebar-tree__action,
+.sidebar-tree__request-row:focus-within .sidebar-tree__action,
+.sidebar-tree__collection-header:hover .sidebar-tree__delete-action,
+.sidebar-tree__folder:hover .sidebar-tree__delete-action,
+.sidebar-tree__request-row:hover .sidebar-tree__delete-action,
+.sidebar-tree__delete-action:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .sidebar-tree__children {
@@ -954,10 +1015,28 @@ textarea::placeholder {
 }
 
 .workbench-tabs__tab-title {
+  display: inline-flex;
+  align-items: baseline;
   max-width: 170px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.workbench-tabs__tab-parent {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.workbench-tabs__tab-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .workbench-tabs__dirty {
@@ -1048,10 +1127,48 @@ textarea::placeholder {
   min-width: 0;
 }
 
-.request-editor__title {
-  min-width: 220px;
-  max-width: 340px;
-  font-weight: 600;
+.request-editor__path {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.request-editor__path-parent,
+.request-editor__path-separator {
+  color: var(--text-muted);
+}
+
+.request-editor__path-separator {
+  margin-left: 3px;
+}
+
+.request-editor__path-name {
+  max-width: 320px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+}
+
+.request-editor__path-name:hover {
+  color: var(--accent-strong);
+}
+
+.request-editor__path-name-input {
+  min-width: 180px;
+  max-width: 320px;
+  padding: 2px 4px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel-bg-alt);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
 }
 
 .request-editor__requestline {
@@ -1494,6 +1611,10 @@ textarea::placeholder {
   background: var(--panel-bg);
 }
 
+.dialog--large {
+  width: min(820px, 100%);
+}
+
 .dialog__header,
 .dialog__footer {
   display: flex;
@@ -1529,6 +1650,75 @@ textarea::placeholder {
   display: grid;
   gap: 12px;
   padding: 12px;
+}
+
+.import-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.import-card {
+  position: relative;
+  min-height: 136px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-content: start;
+  padding: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+
+.import-card:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+.import-card__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 108, 55, 0.24);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.import-card p,
+.workspace-import-panel p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.import-card__loading {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  color: var(--accent-strong);
+  font-size: 12px;
+}
+
+.import-conflict {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255, 108, 55, 0.28);
+  background: var(--accent-soft);
+}
+
+.import-conflict p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.import-conflict__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .dialog__form-grid {
@@ -1734,6 +1924,16 @@ textarea::placeholder {
   padding: 12px;
   border: 1px solid rgba(255, 107, 107, 0.28);
   background: rgba(255, 107, 107, 0.07);
+}
+
+.workspace-import-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .member-search-panel {

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { ConflictException, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import path from "node:path";
 import { Repository } from "typeorm";
@@ -11,6 +11,7 @@ import {
 } from "../../database/entities";
 import { WorkspacesService } from "../workspaces/workspaces.service";
 import { WorkspacePermissionsService } from "../workspaces/workspace-permissions.service";
+import { ImportClientDto } from "./dto/import-client.dto";
 import { ImportPostmanDto } from "./dto/import-postman.dto";
 
 type PostmanAuth = {
@@ -26,6 +27,14 @@ type PostmanVariable = {
   disabled?: unknown;
   description?: unknown;
 };
+
+type ImportedItem = {
+  name: string;
+  request?: Record<string, unknown>;
+  item?: ImportedItem[];
+};
+
+type ImportConflictStrategy = "add" | "mergeOverride";
 
 @Injectable()
 export class ImportExportService {
@@ -67,13 +76,18 @@ export class ImportExportService {
       dto.name ??
       this.readString(payload.info, "name") ??
       "Imported Postman Collection";
+    const resolvedCollectionName = await this.resolveImportCollectionName(
+      workspaceId,
+      collectionName,
+      dto.conflictStrategy,
+    );
 
     const collectionAuth = this.parseAuth(payload.auth as PostmanAuth | undefined);
     const collection = await this.collectionRepository.save(
       this.collectionRepository.create({
         userId,
         workspaceId,
-        name: collectionName,
+        name: resolvedCollectionName,
         description: "Imported from Postman",
         sortOrder: 0,
         authType: collectionAuth.authType,
@@ -100,6 +114,136 @@ export class ImportExportService {
       skippedCount: warnings.length,
       warnings,
     };
+  }
+
+  async importInsomnia(userId: string, dto: ImportClientDto) {
+    const workspaceId = dto.workspaceId ?? await this.workspacesService.ensureDefaultWorkspace(userId);
+    await this.permissions.requireCollectionWrite(userId, workspaceId);
+    const warnings: string[] = [];
+    const resources = Array.isArray(dto.payload.resources) ? dto.payload.resources as Array<Record<string, unknown>> : [];
+    const workspace = resources.find((resource) => resource._type === "workspace");
+    const collectionName = dto.name ?? this.readString(workspace, "name") ?? this.readString(dto.payload, "name") ?? "Imported Insomnia Collection";
+    const collection = await this.createImportedCollection(userId, workspaceId, collectionName, "Imported from Insomnia", dto.conflictStrategy);
+    const rootParentId = typeof workspace?._id === "string" ? workspace._id : undefined;
+    const importedCount = await this.importInsomniaChildren(collection.id, null, resources, rootParentId, warnings);
+    const importedVariableCount = await this.importCollectionVariables(
+      userId,
+      workspaceId,
+      this.extractInsomniaVariables(resources, rootParentId),
+    );
+
+    return {
+      collectionId: collection.id,
+      importedCount,
+      importedVariableCount,
+      skippedCount: warnings.length,
+      warnings,
+    };
+  }
+
+  async importHoppscotch(userId: string, dto: ImportClientDto) {
+    const workspaceId = dto.workspaceId ?? await this.workspacesService.ensureDefaultWorkspace(userId);
+    await this.permissions.requireCollectionWrite(userId, workspaceId);
+    const warnings: string[] = [];
+    const collectionName = dto.name ?? this.readString(dto.payload, "name") ?? "Imported Hoppscotch Collection";
+    const collection = await this.createImportedCollection(userId, workspaceId, collectionName, "Imported from Hoppscotch", dto.conflictStrategy);
+    const items = this.normalizeHoppscotchItems(dto.payload);
+    const importedCount = await this.importItems(collection.id, null, items, warnings);
+    const importedVariableCount = await this.importCollectionVariables(
+      userId,
+      workspaceId,
+      this.extractHoppscotchVariables(dto.payload),
+    );
+
+    return {
+      collectionId: collection.id,
+      importedCount,
+      importedVariableCount,
+      skippedCount: warnings.length,
+      warnings,
+    };
+  }
+
+  private async createImportedCollection(
+    userId: string,
+    workspaceId: string,
+    name: string,
+    description: string,
+    conflictStrategy?: ImportConflictStrategy,
+  ): Promise<CollectionEntity> {
+    const resolvedName = await this.resolveImportCollectionName(
+      workspaceId,
+      name,
+      conflictStrategy,
+    );
+
+    return this.collectionRepository.save(
+      this.collectionRepository.create({
+        userId,
+        workspaceId,
+        name: resolvedName,
+        description,
+        sortOrder: 0,
+        authType: null,
+        authConfig: null,
+      }),
+    );
+  }
+
+  private async resolveImportCollectionName(
+    workspaceId: string,
+    name: string,
+    conflictStrategy?: ImportConflictStrategy,
+  ): Promise<string> {
+    const normalizedName = name.trim() || "Imported Collection";
+    const existingCollection = await this.findCollectionByName(workspaceId, normalizedName);
+
+    if (!existingCollection) {
+      return normalizedName;
+    }
+
+    if (conflictStrategy === "add") {
+      return this.createCopyName(workspaceId, normalizedName);
+    }
+
+    if (conflictStrategy === "mergeOverride") {
+      await this.collectionRepository.remove(existingCollection);
+      return normalizedName;
+    }
+
+    throw new ConflictException({
+      code: "COLLECTION_NAME_CONFLICT",
+      message: `A collection named "${normalizedName}" already exists in this workspace.`,
+      collectionName: normalizedName,
+    });
+  }
+
+  private async createCopyName(workspaceId: string, name: string): Promise<string> {
+    const collections = await this.collectionRepository.find({ where: { workspaceId } });
+    const existingNames = new Set(
+      collections.map((collection) => collection.name.trim().toLowerCase()),
+    );
+    let copyIndex = 2;
+    let candidate = `${name} (${copyIndex})`;
+
+    while (existingNames.has(candidate.toLowerCase())) {
+      copyIndex += 1;
+      candidate = `${name} (${copyIndex})`;
+    }
+
+    return candidate;
+  }
+
+  private async findCollectionByName(
+    workspaceId: string,
+    name: string,
+  ): Promise<CollectionEntity | null> {
+    const collections = await this.collectionRepository.find({ where: { workspaceId } });
+    const normalizedName = name.trim().toLowerCase();
+
+    return collections.find(
+      (collection) => collection.name.trim().toLowerCase() === normalizedName,
+    ) ?? null;
   }
 
   private async importPostmanEnvironment(
@@ -239,6 +383,280 @@ export class ImportExportService {
         enabled: boolean;
         description: string | null;
       }>;
+  }
+
+  private async importInsomniaChildren(
+    collectionId: string,
+    parentFolderId: string | null,
+    resources: Array<Record<string, unknown>>,
+    parentId: string | undefined,
+    warnings: string[],
+  ): Promise<number> {
+    let importedCount = 0;
+    const children = resources.filter((resource) => resource.parentId === parentId);
+
+    for (const resource of children) {
+      const type = resource._type;
+
+      if (type === "request_group") {
+        const folder = await this.folderRepository.save(
+          this.folderRepository.create({
+            collectionId,
+            parentFolderId,
+            name: this.readString(resource, "name") ?? "Imported Folder",
+            sortOrder: importedCount * 100,
+            authType: null,
+            authConfig: null,
+          }),
+        );
+
+        importedCount += await this.importInsomniaChildren(
+          collectionId,
+          folder.id,
+          resources,
+          this.readString(resource, "_id"),
+          warnings,
+        );
+        continue;
+      }
+
+      if (type !== "request") {
+        continue;
+      }
+
+      const parsedRequest = this.parseInsomniaRequest(resource, warnings);
+      await this.requestRepository.save(
+        this.requestRepository.create({
+          collectionId,
+          folderId: parentFolderId,
+          name: this.readString(resource, "name") ?? "Imported Request",
+          protocolType: "http",
+          method: parsedRequest.method,
+          url: parsedRequest.url,
+          trpcProcedurePath: null,
+          headers: parsedRequest.headers,
+          queryParams: parsedRequest.queryParams,
+          bodyType: parsedRequest.bodyType,
+          body: parsedRequest.body,
+          formData: parsedRequest.formData,
+          authType: parsedRequest.authType,
+          authConfig: parsedRequest.authConfig,
+          preRequestScript: "",
+          postResponseScript: "",
+          sortOrder: importedCount * 100,
+        }),
+      );
+      importedCount += 1;
+    }
+
+    return importedCount;
+  }
+
+  private parseInsomniaRequest(
+    resource: Record<string, unknown>,
+    warnings: string[],
+  ) {
+    const method = this.toHttpMethod(resource.method);
+    const body = resource.body as Record<string, unknown> | undefined;
+    const mimeType = typeof body?.mimeType === "string" ? body.mimeType : "";
+    const bodyText = typeof body?.text === "string" ? body.text : "";
+    const headers = this.parseNamedItems(resource.headers);
+    const queryParams = this.parseNamedItems(resource.parameters);
+    const auth = this.parseInsomniaAuth(resource.authentication);
+
+    if (Array.isArray(body?.params)) {
+      return {
+        method,
+        url: String(resource.url ?? ""),
+        headers,
+        queryParams,
+        bodyType: "form-urlencoded" as const,
+        body: "",
+        formData: this.parseNamedItems(body.params),
+        authType: auth.authType,
+        authConfig: auth.authConfig,
+      };
+    }
+
+    if (bodyText) {
+      return {
+        method,
+        url: String(resource.url ?? ""),
+        headers,
+        queryParams,
+        bodyType: mimeType.includes("json") ? "json" as const : "text" as const,
+        body: bodyText,
+        formData: [],
+        authType: auth.authType,
+        authConfig: auth.authConfig,
+      };
+    }
+
+    if (body && Object.keys(body).length > 0 && !bodyText) {
+      warnings.push(`Unsupported Insomnia body was imported as empty body: ${String(resource.name ?? "unknown")}`);
+    }
+
+    return {
+      method,
+      url: String(resource.url ?? ""),
+      headers,
+      queryParams,
+      bodyType: "none" as const,
+      body: "",
+      formData: [],
+      authType: auth.authType,
+      authConfig: auth.authConfig,
+    };
+  }
+
+  private normalizeHoppscotchItems(payload: Record<string, unknown>): ImportedItem[] {
+    const folders = Array.isArray(payload.folders) ? payload.folders : [];
+    const requests = Array.isArray(payload.requests) ? payload.requests : [];
+
+    return [
+      ...folders.map((folder) => this.normalizeHoppscotchFolder(folder as Record<string, unknown>)),
+      ...requests.map((request) => ({
+        name: this.readString(request, "name") ?? "Imported Request",
+        request: this.toPostmanLikeRequestFromHoppscotch(request as Record<string, unknown>),
+      })),
+    ];
+  }
+
+  private normalizeHoppscotchFolder(folder: Record<string, unknown>): ImportedItem {
+    return {
+      name: this.readString(folder, "name") ?? "Imported Folder",
+      item: [
+        ...(Array.isArray(folder.folders)
+          ? folder.folders.map((child) => this.normalizeHoppscotchFolder(child as Record<string, unknown>))
+          : []),
+        ...(Array.isArray(folder.requests)
+          ? folder.requests.map((request) => ({
+              name: this.readString(request, "name") ?? "Imported Request",
+              request: this.toPostmanLikeRequestFromHoppscotch(request as Record<string, unknown>),
+            }))
+          : []),
+      ],
+    };
+  }
+
+  private toPostmanLikeRequestFromHoppscotch(request: Record<string, unknown>) {
+    const body = request.body as Record<string, unknown> | string | undefined;
+    const bodyText =
+      typeof body === "string"
+        ? body
+        : typeof body?.body === "string"
+          ? body.body
+          : typeof request.rawInput === "string"
+            ? request.rawInput
+            : "";
+
+    return {
+      method: this.toHttpMethod(request.method),
+      url: this.readString(request, "endpoint") ?? this.readString(request, "url") ?? "",
+      header: this.parseNamedItems(request.headers).map((header) => ({
+        key: header.key,
+        value: header.value,
+        disabled: !header.enabled,
+      })),
+      body: bodyText
+        ? {
+            mode: "raw",
+            raw: bodyText,
+            options: { raw: { language: this.looksLikeJson(bodyText) ? "json" : "text" } },
+          }
+        : { mode: "none" },
+    };
+  }
+
+  private parseNamedItems(rawItems: unknown): Array<{ id: string; key: string; value: string; enabled: boolean }> {
+    if (!Array.isArray(rawItems)) {
+      return [];
+    }
+
+    return rawItems.map((item, index) => {
+      const record = item as Record<string, unknown>;
+      return {
+        id: `${index}`,
+        key: String(record.key ?? record.name ?? ""),
+        value: String(record.value ?? ""),
+        enabled: record.disabled !== true && record.active !== false,
+      };
+    });
+  }
+
+  private parseInsomniaAuth(authPayload: unknown): {
+    authType: "basic" | "bearer" | null;
+    authConfig: Record<string, string> | null;
+  } {
+    const auth = authPayload as Record<string, unknown> | undefined;
+    if (!auth || typeof auth !== "object") {
+      return { authType: null, authConfig: null };
+    }
+
+    if (auth.type === "bearer") {
+      return { authType: "bearer", authConfig: { token: String(auth.token ?? "") } };
+    }
+
+    if (auth.type === "basic") {
+      return {
+        authType: "basic",
+        authConfig: {
+          username: String(auth.username ?? ""),
+          password: String(auth.password ?? ""),
+        },
+      };
+    }
+
+    return { authType: null, authConfig: null };
+  }
+
+  private extractInsomniaVariables(
+    resources: Array<Record<string, unknown>>,
+    workspaceId?: string,
+  ): PostmanVariable[] {
+    return resources
+      .filter((resource) => resource._type === "environment" && resource.parentId === workspaceId)
+      .flatMap((resource) => this.recordToVariables(resource.data));
+  }
+
+  private extractHoppscotchVariables(payload: Record<string, unknown>): PostmanVariable[] {
+    if (Array.isArray(payload.variables)) {
+      return payload.variables as PostmanVariable[];
+    }
+
+    if (payload.environment && typeof payload.environment === "object") {
+      return this.recordToVariables((payload.environment as Record<string, unknown>).variables ?? payload.environment);
+    }
+
+    return [];
+  }
+
+  private recordToVariables(input: unknown): PostmanVariable[] {
+    if (!input || typeof input !== "object") {
+      return [];
+    }
+
+    return Object.entries(input as Record<string, unknown>).map(([key, value]) => ({
+      key,
+      value,
+      enabled: true,
+    }));
+  }
+
+  private toHttpMethod(value: unknown): "GET" | "POST" | "PUT" | "PATCH" | "DELETE" {
+    const method = typeof value === "string" ? value.toUpperCase() : "GET";
+    return ["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method)
+      ? method as "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
+      : "GET";
+  }
+
+  private looksLikeJson(value: string): boolean {
+    try {
+      JSON.parse(value);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async importItems(

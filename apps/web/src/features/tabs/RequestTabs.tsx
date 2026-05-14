@@ -5,9 +5,30 @@ import {
   HistoryIcon,
   PlusIcon,
 } from "../../components/AppIcons";
+import type { CollectionTreeFolder } from "@postman-clone/shared-types";
+import { useCollectionsStore } from "../../store/collectionsStore";
 import { useEnvironmentsStore } from "../../store/environmentsStore";
 import { useLayoutStore } from "../../store/layoutStore";
 import { useTabsStore } from "../../store/tabsStore";
+
+function findFolderName(folders: CollectionTreeFolder[], folderId: string | null): string | null {
+  if (!folderId) {
+    return null;
+  }
+
+  for (const folder of folders) {
+    if (folder.id === folderId) {
+      return folder.name;
+    }
+
+    const childFolderName = findFolderName(folder.folders, folderId);
+    if (childFolderName) {
+      return childFolderName;
+    }
+  }
+
+  return null;
+}
 
 export function RequestTabs() {
   const tabs = useTabsStore((state) => state.tabs);
@@ -15,6 +36,7 @@ export function RequestTabs() {
   const setActiveTab = useTabsStore((state) => state.setActiveTab);
   const closeTab = useTabsStore((state) => state.closeTab);
   const createRequestTab = useTabsStore((state) => state.createRequestTab);
+  const collections = useCollectionsStore((state) => state.collections);
   const environments = useEnvironmentsStore((state) => state.environments);
   const activeEnvironmentId = useEnvironmentsStore((state) => state.activeEnvironmentId);
   const setActiveEnvironment = useEnvironmentsStore((state) => state.setActiveEnvironment);
@@ -24,27 +46,39 @@ export function RequestTabs() {
   return (
     <div className="workbench-tabs">
       <div className="workbench-tabs__scroll">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className={`workbench-tabs__tab ${tab.id === activeTabId ? "is-active" : ""}`}
-            onClick={() => setActiveTab(tab.id)}
-            type="button"
-          >
-            <span className="workbench-tabs__tab-title">{tab.title}</span>
-            {tab.isDirty ? <span className="workbench-tabs__dirty" /> : null}
-            <span
-              className="workbench-tabs__close"
-              onClick={(event) => {
-                event.stopPropagation();
-                closeTab(tab.id);
-              }}
-              role="presentation"
+        {tabs.map((tab) => {
+          const collection = collections.find(
+            (item) => item.id === tab.draft.collectionId,
+          );
+          const folderName = findFolderName(collection?.folders ?? [], tab.draft.folderId);
+
+          return (
+            <button
+              key={tab.id}
+              className={`workbench-tabs__tab ${tab.id === activeTabId ? "is-active" : ""}`}
+              onClick={() => setActiveTab(tab.id)}
+              type="button"
             >
-              <CloseIcon />
-            </span>
-          </button>
-        ))}
+              <span className="workbench-tabs__tab-title">
+                {folderName ? (
+                  <span className="workbench-tabs__tab-parent">{folderName}/</span>
+                ) : null}
+                <span className="workbench-tabs__tab-name">{tab.title}</span>
+              </span>
+              {tab.isDirty ? <span className="workbench-tabs__dirty" /> : null}
+              <span
+                className="workbench-tabs__close"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  closeTab(tab.id);
+                }}
+                role="presentation"
+              >
+                <CloseIcon />
+              </span>
+            </button>
+          );
+        })}
 
         <button
           aria-label="New request tab"

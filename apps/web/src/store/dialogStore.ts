@@ -9,6 +9,16 @@ interface NoticeDialogConfig {
   actionUrl?: string;
 }
 
+interface ConfirmDialogConfig {
+  kind: "confirm";
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  tone?: "default" | "danger";
+  onConfirm: () => Promise<void> | void;
+}
+
 interface TextDialogConfig {
   kind: "text";
   title: string;
@@ -52,6 +62,7 @@ interface SaveLocationDialogConfig {
 
 export type DialogConfig =
   | NoticeDialogConfig
+  | ConfirmDialogConfig
   | TextDialogConfig
   | KeyValueDialogConfig
   | SaveLocationDialogConfig;
@@ -59,6 +70,7 @@ export type DialogConfig =
 interface DialogStore {
   dialog: DialogConfig | null;
   openNoticeDialog: (config: Omit<NoticeDialogConfig, "kind">) => void;
+  openConfirmDialog: (config: Omit<ConfirmDialogConfig, "kind">) => void;
   openTextDialog: (config: Omit<TextDialogConfig, "kind">) => void;
   openKeyValueDialog: (config: Omit<KeyValueDialogConfig, "kind">) => void;
   openSaveLocationDialog: (config: Omit<SaveLocationDialogConfig, "kind">) => void;
@@ -72,6 +84,16 @@ export const useDialogStore = create<DialogStore>((set) => ({
       dialog: {
         kind: "notice",
         confirmLabel: "Close",
+        ...config,
+      },
+    }),
+  openConfirmDialog: (config) =>
+    set({
+      dialog: {
+        kind: "confirm",
+        confirmLabel: "Confirm",
+        cancelLabel: "Cancel",
+        tone: "default",
         ...config,
       },
     }),

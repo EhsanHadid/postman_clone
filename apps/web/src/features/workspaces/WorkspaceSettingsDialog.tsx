@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { PublicUserProfile, WorkspaceRole } from "@postman-clone/shared-types";
+import { ImportExportControls } from "../import-export/ImportExportControls";
 import { api } from "../../services/api";
 import { useWorkspaceStore, workspacePermissions } from "../../store/workspaceStore";
 
@@ -167,6 +168,13 @@ export function WorkspaceSettingsDialog({ onClose }: WorkspaceSettingsDialogProp
               >
                 Save changes
               </button>
+              <div className="workspace-import-panel">
+                <div>
+                  <strong>Import data</strong>
+                  <p>Bring collections, environments, or backups into this workspace.</p>
+                </div>
+                <ImportExportControls variant="menu" />
+              </div>
               <div className="workspace-danger">
                 <div>
                   <strong>Delete workspace</strong>

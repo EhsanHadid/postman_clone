@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { EditorTabKey, RequestDefinition } from "@postman-clone/shared-types";
+import type {
+  CollectionTree,
+  CollectionTreeFolder,
+  EditorTabKey,
+  RequestDefinition,
+} from "@postman-clone/shared-types";
 import {
   ChevronDownIcon,
   HttpIcon,
@@ -184,6 +189,38 @@ function getTabHasData(tab: EditorTabKey, draft: RequestDefinition) {
   return false;
 }
 
+function findFolderPath(folders: CollectionTreeFolder[], folderId: string | null): string[] {
+  if (!folderId) {
+    return [];
+  }
+
+  for (const folder of folders) {
+    if (folder.id === folderId) {
+      return [folder.name];
+    }
+
+    const childPath = findFolderPath(folder.folders, folderId);
+    if (childPath.length) {
+      return [folder.name, ...childPath];
+    }
+  }
+
+  return [];
+}
+
+function getRequestPath(collections: CollectionTree[], draft: RequestDefinition): string[] {
+  const collection = collections.find((item) => item.id === draft.collectionId);
+  if (!collection) {
+    return [draft.name || "Untitled Request"];
+  }
+
+  return [
+    collection.name,
+    ...findFolderPath(collection.folders, draft.folderId),
+    draft.name || "Untitled Request",
+  ];
+}
+
 export function RequestEditor() {
   const tabs = useTabsStore((state) => state.tabs);
   const activeTabId = useTabsStore((state) => state.activeTabId);
@@ -202,6 +239,7 @@ export function RequestEditor() {
   const openSaveLocationDialog = useDialogStore((state) => state.openSaveLocationDialog);
   const openNoticeDialog = useDialogStore((state) => state.openNoticeDialog);
   const activeDialog = useDialogStore((state) => state.dialog);
+  const [editingName, setEditingName] = useState(false);
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
   const draft = activeTab?.draft ?? null;
@@ -211,6 +249,8 @@ export function RequestEditor() {
   const trpcUsesGet = draft?.protocolType === "trpc" && effectiveMethod === "GET";
   const variableSuggestions = getEnvironmentVariableSuggestions(environments, activeEnvironmentId);
   const variableSuggestionKey = variableSuggestions.map((suggestion) => suggestion.key).join("|");
+  const requestPath = draft ? getRequestPath(collections, draft) : [];
+  const requestParents = requestPath.slice(0, -1);
 
   const changeProtocol = (protocolType: RequestDefinition["protocolType"]) => {
     if (!draft) {
@@ -421,12 +461,38 @@ export function RequestEditor() {
     <section className="request-editor workbench-panel">
       <div className="request-editor__header">
         <div className="request-editor__title-wrap">
-          <input
-            className="input input--dense request-editor__title"
-            value={draft.name}
-            onChange={(event) => updateActiveDraft({ name: event.target.value })}
-            placeholder="Untitled Request"
-          />
+          <div className="request-editor__path" aria-label="Request path">
+            {requestParents.map((part, index) => (
+              <span className="request-editor__path-parent" key={`${part}-${index}`}>
+                {part}
+                <span className="request-editor__path-separator">/</span>
+              </span>
+            ))}
+            {editingName ? (
+              <input
+                autoFocus
+                className="request-editor__path-name-input"
+                value={draft.name}
+                onBlur={() => setEditingName(false)}
+                onChange={(event) => updateActiveDraft({ name: event.target.value })}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === "Escape") {
+                    event.currentTarget.blur();
+                  }
+                }}
+                placeholder="Untitled Request"
+              />
+            ) : (
+              <button
+                className="request-editor__path-name"
+                onClick={() => setEditingName(true)}
+                title="Rename request"
+                type="button"
+              >
+                {draft.name || "Untitled Request"}
+              </button>
+            )}
+          </div>
           <div className="request-editor__subtitle">
             {activeTab.requestId ? "Saved request" : "Unsaved tab"} |{" "}
             {draft.protocolType === "trpc"

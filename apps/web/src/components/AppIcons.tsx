@@ -28,6 +28,15 @@ export const PlusIcon = createIcon(<path d="M8 3.25v9.5M3.25 8h9.5" />);
 
 export const CloseIcon = createIcon(<path d="M4 4l8 8M12 4l-8 8" />);
 
+export const TrashIcon = createIcon(
+  <>
+    <path d="M3.2 4.4h9.6" />
+    <path d="M6.2 4.4V3.1h3.6v1.3" />
+    <path d="M4.5 4.4l.5 8.2h6l.5-8.2" />
+    <path d="M6.8 6.8v3.6M9.2 6.8v3.6" />
+  </>,
+);
+
 export const SearchIcon = createIcon(
   <>
     <circle cx="7" cy="7" r="3.75" />

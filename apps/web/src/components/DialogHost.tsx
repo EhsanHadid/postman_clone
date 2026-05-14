@@ -102,21 +102,6 @@ export function DialogHost() {
     }
   }, [dialog, folderOptions, selectedCollectionId, selectedFolderId]);
 
-  useEffect(() => {
-    if (!dialog) {
-      return undefined;
-    }
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !submitting) {
-        closeDialog();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [closeDialog, dialog, submitting]);
-
   if (!dialog) {
     return null;
   }
@@ -128,6 +113,10 @@ export function DialogHost() {
     try {
       if (dialog.kind === "text") {
         await dialog.onSubmit(textValue.trim());
+      }
+
+      if (dialog.kind === "confirm") {
+        await dialog.onConfirm();
       }
 
       if (dialog.kind === "keyValue") {
@@ -173,15 +162,7 @@ export function DialogHost() {
   };
 
   return (
-    <div
-      className="dialog-backdrop"
-      onClick={() => {
-        if (!submitting) {
-          closeDialog();
-        }
-      }}
-      role="presentation"
-    >
+    <div className="dialog-backdrop" role="presentation">
       <div
         className="dialog card"
         onClick={(event) => event.stopPropagation()}
@@ -208,6 +189,10 @@ export function DialogHost() {
 
         <div className="dialog__content">
           {dialog.kind === "notice" ? (
+            <div className="dialog__notice">{dialog.description}</div>
+          ) : null}
+
+          {dialog.kind === "confirm" ? (
             <div className="dialog__notice">{dialog.description}</div>
           ) : null}
 
@@ -340,7 +325,7 @@ export function DialogHost() {
               onClick={closeDialog}
               type="button"
             >
-              Cancel
+              {dialog.kind === "confirm" ? dialog.cancelLabel || "Cancel" : "Cancel"}
             </button>
           ) : null}
           {dialog.kind === "notice" && dialog.actionUrl ? (
@@ -354,7 +339,9 @@ export function DialogHost() {
             </a>
           ) : null}
           <button
-            className="button button-primary"
+            className={`button button-primary ${
+              dialog.kind === "confirm" && dialog.tone === "danger" ? "button-danger" : ""
+            }`}
             disabled={submitting}
             onClick={() => void submit()}
             type="button"
@@ -363,6 +350,8 @@ export function DialogHost() {
               ? "Saving..."
               : dialog.kind === "notice"
                 ? dialog.confirmLabel || "Close"
+                : dialog.kind === "confirm"
+                  ? dialog.confirmLabel || "Confirm"
                 : dialog.submitLabel || "Save"}
           </button>
         </footer>

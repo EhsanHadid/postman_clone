@@ -231,6 +231,16 @@ export const api = {
       method: "POST",
       bodyJson: payload,
     }),
+  importInsomnia: (payload: Record<string, unknown>) =>
+    apiRequest("/import/insomnia", {
+      method: "POST",
+      bodyJson: payload,
+    }),
+  importHoppscotch: (payload: Record<string, unknown>) =>
+    apiRequest("/import/hoppscotch", {
+      method: "POST",
+      bodyJson: payload,
+    }),
   exportBackup: async (workspaceId?: string | null) => {
     const params = new URLSearchParams();
     if (workspaceId) {

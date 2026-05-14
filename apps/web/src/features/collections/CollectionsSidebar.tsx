@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { CollectionTree, CollectionTreeFolder, RequestDefinition } from "@postman-clone/shared-types";
 import {
   ChevronDownIcon,
@@ -11,6 +11,7 @@ import {
   PlusIcon,
   RequestIcon,
   SearchIcon,
+  TrashIcon,
 } from "../../components/AppIcons";
 import { api } from "../../services/api";
 import { useCollectionsStore } from "../../store/collectionsStore";
@@ -31,6 +32,10 @@ interface SidebarTreeNodeProps {
   onToggleFolder: (folderId: string) => void;
   onCreateRequest: (collectionId: string, folderId: string | null) => Promise<void>;
   onCreateFolder: (collectionId: string, parentFolderId: string | null) => Promise<void>;
+  onDeleteFolder: (folder: CollectionTreeFolder) => Promise<void>;
+  onDeleteRequest: (request: RequestDefinition) => Promise<void>;
+  activeRequestId: string | null;
+  canEditCollections: boolean;
 }
 
 interface SidebarModeButtonProps {
@@ -61,15 +66,28 @@ function SidebarFolderNode({
   onToggleFolder,
   onCreateRequest,
   onCreateFolder,
+  onDeleteFolder,
+  onDeleteRequest,
+  activeRequestId,
+  canEditCollections,
 }: SidebarTreeNodeProps) {
   const expanded = expandedFolderIds.has(folder.id);
 
+  const handleFolderKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onToggleFolder(folder.id);
+    }
+  };
+
   return (
     <div className="sidebar-tree__branch">
-      <button
+      <div
         className="sidebar-tree__folder"
         onClick={() => onToggleFolder(folder.id)}
-        type="button"
+        onKeyDown={handleFolderKeyDown}
+        role="button"
+        tabIndex={0}
       >
         <span className="sidebar-tree__caret">
           {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
@@ -77,28 +95,47 @@ function SidebarFolderNode({
         <FolderIcon className="sidebar-tree__item-icon" />
         <span className="sidebar-tree__folder-name">{folder.name}</span>
         <span className="sidebar-tree__actions">
-          <span
-            className="text-action text-action--quiet"
+          <button
+            aria-label="Add request"
+            className="icon-button icon-button--tiny sidebar-tree__action"
+            disabled={!canEditCollections}
             onClick={(event) => {
               event.stopPropagation();
               void onCreateRequest(folder.collectionId, folder.id);
             }}
-            role="presentation"
+            title="Add request"
+            type="button"
           >
-            request
-          </span>
-          <span
-            className="text-action text-action--quiet"
+            <RequestIcon />
+          </button>
+          <button
+            aria-label="Create folder"
+            className="icon-button icon-button--tiny sidebar-tree__action"
+            disabled={!canEditCollections}
             onClick={(event) => {
               event.stopPropagation();
               void onCreateFolder(folder.collectionId, folder.id);
             }}
-            role="presentation"
+            title="Create folder"
+            type="button"
           >
-            folder
-          </span>
+            <FolderIcon />
+          </button>
+          <button
+            aria-label="Delete folder"
+            className="icon-button icon-button--tiny sidebar-tree__action sidebar-tree__delete-action"
+            disabled={!canEditCollections}
+            onClick={(event) => {
+              event.stopPropagation();
+              void onDeleteFolder(folder);
+            }}
+            title="Delete folder"
+            type="button"
+          >
+            <TrashIcon />
+          </button>
         </span>
-      </button>
+      </div>
 
       {expanded ? (
         <div className="sidebar-tree__children">
@@ -111,19 +148,39 @@ function SidebarFolderNode({
               onToggleFolder={onToggleFolder}
               onCreateRequest={onCreateRequest}
               onCreateFolder={onCreateFolder}
+              onDeleteFolder={onDeleteFolder}
+              onDeleteRequest={onDeleteRequest}
+              activeRequestId={activeRequestId}
+              canEditCollections={canEditCollections}
             />
           ))}
           {folder.requests.map((request) => (
-            <button
-              className="sidebar-tree__request"
+            <div
+              className={`sidebar-tree__request-row ${
+                request.id === activeRequestId ? "is-active" : ""
+              }`}
               key={request.id}
-              onClick={() => onOpenRequest(request)}
-              type="button"
             >
-              <RequestIcon className="sidebar-tree__item-icon" />
-              <span className={`badge method-${request.method}`}>{request.method}</span>
-              <span className="sidebar-tree__request-name">{request.name}</span>
-            </button>
+              <button
+                className="sidebar-tree__request"
+                onClick={() => onOpenRequest(request)}
+                type="button"
+              >
+                <RequestIcon className="sidebar-tree__item-icon" />
+                <span className={`badge method-${request.method}`}>{request.method}</span>
+                <span className="sidebar-tree__request-name">{request.name}</span>
+              </button>
+              <button
+                aria-label="Delete request"
+                className="icon-button icon-button--tiny sidebar-tree__action sidebar-tree__delete-action"
+                disabled={!canEditCollections}
+                onClick={() => void onDeleteRequest(request)}
+                title="Delete request"
+                type="button"
+              >
+                <TrashIcon />
+              </button>
+            </div>
           ))}
         </div>
       ) : null}
@@ -162,14 +219,29 @@ function collectFolderIds(collections: CollectionTree[]): string[] {
   return ids;
 }
 
+function collectCollectionIds(collections: CollectionTree[]): string[] {
+  return collections.map((collection) => collection.id);
+}
+
 function getFolderStateStorageKey(workspaceId: string | null) {
   return `postman-clone-folder-expansion:${workspaceId ?? "global"}`;
+}
+
+function getCollectionStateStorageKey(workspaceId: string | null) {
+  return `postman-clone-collection-expansion:${workspaceId ?? "global"}`;
 }
 
 function saveExpandedFolderIds(workspaceId: string | null, folderIds: Set<string>) {
   window.localStorage.setItem(
     getFolderStateStorageKey(workspaceId),
     JSON.stringify([...folderIds]),
+  );
+}
+
+function saveExpandedCollectionIds(workspaceId: string | null, collectionIds: Set<string>) {
+  window.localStorage.setItem(
+    getCollectionStateStorageKey(workspaceId),
+    JSON.stringify([...collectionIds]),
   );
 }
 
@@ -184,21 +256,31 @@ export function CollectionsSidebar() {
   const fetchEnvironments = useEnvironmentsStore((state) => state.fetchEnvironments);
   const historyEntries = useHistoryStore((state) => state.entries);
   const openRequestTab = useTabsStore((state) => state.openRequestTab);
-  const createRequestTab = useTabsStore((state) => state.createRequestTab);
+  const closeTab = useTabsStore((state) => state.closeTab);
+  const tabs = useTabsStore((state) => state.tabs);
+  const activeTabId = useTabsStore((state) => state.activeTabId);
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
   const activeWorkspace = useWorkspaceStore((state) =>
     state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId),
   );
   const openTextDialog = useDialogStore((state) => state.openTextDialog);
+  const openConfirmDialog = useDialogStore((state) => state.openConfirmDialog);
   const toggleHistory = useLayoutStore((state) => state.toggleHistory);
   const toggleCookies = useLayoutStore((state) => state.toggleCookies);
   const toggleEnvironments = useLayoutStore((state) => state.toggleEnvironments);
   const [search, setSearch] = useState("");
   const [mode, setMode] = useState<SidebarMode>("collections");
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() => new Set());
+  const [expandedCollectionIds, setExpandedCollectionIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const canEditCollections = workspacePermissions.canEditCollections(
     activeWorkspace?.currentUserRole ?? null,
   );
+  const activeRequestId =
+    tabs.find((tab) => tab.id === activeTabId)?.requestId ??
+    tabs.find((tab) => tab.id === activeTabId)?.draft.id ??
+    null;
 
   const filteredCollections = useMemo(() => {
     if (!search.trim()) {
@@ -230,10 +312,7 @@ export function CollectionsSidebar() {
   }, [collections, search]);
 
   const allFolderIds = useMemo(() => collectFolderIds(collections), [collections]);
-  const filteredFolderIds = useMemo(
-    () => collectFolderIds(filteredCollections),
-    [filteredCollections],
-  );
+  const allCollectionIds = useMemo(() => collectCollectionIds(collections), [collections]);
 
   useEffect(() => {
     const storageKey = getFolderStateStorageKey(activeWorkspaceId);
@@ -254,6 +333,25 @@ export function CollectionsSidebar() {
     saveExpandedFolderIds(activeWorkspaceId, defaultIds);
   }, [activeWorkspaceId, allFolderIds]);
 
+  useEffect(() => {
+    const storageKey = getCollectionStateStorageKey(activeWorkspaceId);
+    const saved = window.localStorage.getItem(storageKey);
+
+    if (saved) {
+      try {
+        const savedIds = new Set(JSON.parse(saved) as string[]);
+        setExpandedCollectionIds(savedIds);
+        return;
+      } catch {
+        window.localStorage.removeItem(storageKey);
+      }
+    }
+
+    const defaultIds = new Set(allCollectionIds);
+    setExpandedCollectionIds(defaultIds);
+    saveExpandedCollectionIds(activeWorkspaceId, defaultIds);
+  }, [activeWorkspaceId, allCollectionIds]);
+
   const toggleFolder = (folderId: string) => {
     setExpandedFolderIds((current) => {
       const next = new Set(current);
@@ -267,19 +365,15 @@ export function CollectionsSidebar() {
     });
   };
 
-  const expandAllFolders = () => {
-    setExpandedFolderIds((current) => {
-      const next = new Set([...current, ...filteredFolderIds]);
-      saveExpandedFolderIds(activeWorkspaceId, next);
-      return next;
-    });
-  };
-
-  const collapseAllFolders = () => {
-    setExpandedFolderIds((current) => {
+  const toggleCollection = (collectionId: string) => {
+    setExpandedCollectionIds((current) => {
       const next = new Set(current);
-      filteredFolderIds.forEach((folderId) => next.delete(folderId));
-      saveExpandedFolderIds(activeWorkspaceId, next);
+      if (next.has(collectionId)) {
+        next.delete(collectionId);
+      } else {
+        next.add(collectionId);
+      }
+      saveExpandedCollectionIds(activeWorkspaceId, next);
       return next;
     });
   };
@@ -367,6 +461,62 @@ export function CollectionsSidebar() {
     });
   };
 
+  const deleteCollection = async (collection: CollectionTree) => {
+    if (!canEditCollections) {
+      return;
+    }
+
+    openConfirmDialog({
+      title: "Delete collection",
+      description: `Delete collection "${collection.name}" and everything inside it?`,
+      confirmLabel: "Delete",
+      tone: "danger",
+      onConfirm: async () => {
+        await api.collections.delete(collection.id);
+        await fetchCollections();
+      },
+    });
+  };
+
+  const deleteFolder = async (folder: CollectionTreeFolder) => {
+    if (!canEditCollections) {
+      return;
+    }
+
+    openConfirmDialog({
+      title: "Delete folder",
+      description: `Delete folder "${folder.name}" and everything inside it?`,
+      confirmLabel: "Delete",
+      tone: "danger",
+      onConfirm: async () => {
+        await api.folders.delete(folder.id);
+        await fetchCollections();
+      },
+    });
+  };
+
+  const deleteRequest = async (request: RequestDefinition) => {
+    if (!canEditCollections) {
+      return;
+    }
+
+    openConfirmDialog({
+      title: "Delete request",
+      description: `Delete request "${request.name}"?`,
+      confirmLabel: "Delete",
+      tone: "danger",
+      onConfirm: async () => {
+        await api.requests.delete(request.id);
+        tabs
+          .filter((tab) => tab.requestId === request.id)
+          .forEach((tab) => {
+            closeTab(tab.id);
+          });
+        await fetchCollections();
+      },
+    });
+  };
+
   const createEnvironment = async () => {
     if (!activeWorkspaceId || !workspacePermissions.canUpdateWorkspace(activeWorkspace?.currentUserRole ?? null)) {
       return;
@@ -441,13 +591,14 @@ export function CollectionsSidebar() {
 
           {mode === "collections" ? (
             <button
-              className="text-action text-action--accent"
+              aria-label="Create collection"
+              className="icon-button icon-button--tiny"
               disabled={!canEditCollections}
               onClick={() => void createCollection()}
+              title="Create collection"
               type="button"
             >
               <PlusIcon />
-              <span>new</span>
             </button>
           ) : mode === "history" ? (
             <button className="text-action" onClick={toggleHistory} type="button">
@@ -476,103 +627,113 @@ export function CollectionsSidebar() {
               />
             </label>
 
-            <div className="sidebar__text-actions">
-              <button
-                className="text-action text-action--accent"
-                disabled={!canEditCollections}
-                onClick={() => createRequestTab()}
-                type="button"
-              >
-                <PlusIcon />
-                <span>new tab</span>
-              </button>
-              <button
-                className="text-action"
-                disabled={!canEditCollections}
-                onClick={() => void createCollection()}
-                type="button"
-              >
-                <CollectionIcon />
-                <span>collection</span>
-              </button>
-              <div className="sidebar__tree-tools" aria-label="Folder tree controls">
-                <button
-                  aria-label="Expand all folders"
-                  className="icon-button icon-button--tiny"
-                  disabled={!filteredFolderIds.length}
-                  onClick={expandAllFolders}
-                  title="Expand all folders"
-                  type="button"
-                >
-                  <ChevronDownIcon />
-                </button>
-                <button
-                  aria-label="Collapse all folders"
-                  className="icon-button icon-button--tiny"
-                  disabled={!filteredFolderIds.length}
-                  onClick={collapseAllFolders}
-                  title="Collapse all folders"
-                  type="button"
-                >
-                  <ChevronRightIcon />
-                </button>
-              </div>
-            </div>
-
             <div className="sidebar-tree">
-              {filteredCollections.map((collection: CollectionTree) => (
-                <div className="sidebar-tree__collection" key={collection.id}>
-                  <div className="sidebar-tree__collection-header">
-                    <div className="sidebar-tree__collection-title-wrap">
-                      <CollectionIcon className="sidebar-tree__item-icon" />
-                      <span className="sidebar-tree__collection-title">{collection.name}</span>
-                    </div>
-                    <div className="sidebar-tree__header-actions">
+              {filteredCollections.map((collection: CollectionTree) => {
+                const expanded = expandedCollectionIds.has(collection.id);
+
+                return (
+                  <div className="sidebar-tree__collection" key={collection.id}>
+                    <div className="sidebar-tree__collection-header">
                       <button
-                        className="text-action text-action--quiet"
-                        disabled={!canEditCollections}
-                        onClick={() => void createRequest(collection.id, null)}
+                        aria-label={expanded ? "Collapse collection" : "Expand collection"}
+                        className="icon-button icon-button--tiny sidebar-tree__toggle"
+                        onClick={() => toggleCollection(collection.id)}
+                        title={expanded ? "Collapse collection" : "Expand collection"}
                         type="button"
                       >
-                        request
+                        {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
                       </button>
-                      <button
-                        className="text-action text-action--quiet"
-                        disabled={!canEditCollections}
-                        onClick={() => void createFolder(collection.id, null)}
-                        type="button"
-                      >
-                        folder
-                      </button>
+                      <div className="sidebar-tree__collection-title-wrap">
+                        <CollectionIcon className="sidebar-tree__item-icon" />
+                        <span className="sidebar-tree__collection-title">{collection.name}</span>
+                      </div>
+                      <div className="sidebar-tree__header-actions">
+                        <button
+                          aria-label="Add request"
+                          className="icon-button icon-button--tiny sidebar-tree__action"
+                          disabled={!canEditCollections}
+                          onClick={() => void createRequest(collection.id, null)}
+                          title="Add request"
+                          type="button"
+                        >
+                          <RequestIcon />
+                        </button>
+                        <button
+                          aria-label="Create folder"
+                          className="icon-button icon-button--tiny sidebar-tree__action"
+                          disabled={!canEditCollections}
+                          onClick={() => void createFolder(collection.id, null)}
+                          title="Create folder"
+                          type="button"
+                        >
+                          <FolderIcon />
+                        </button>
+                        <button
+                          aria-label="Delete collection"
+                          className="icon-button icon-button--tiny sidebar-tree__action sidebar-tree__delete-action"
+                          disabled={!canEditCollections}
+                          onClick={() => void deleteCollection(collection)}
+                          title="Delete collection"
+                          type="button"
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
                     </div>
+
+                    {expanded ? (
+                      <div className="sidebar-tree__collection-body">
+                        {collection.requests.map((request) => (
+                          <div
+                            className={`sidebar-tree__request-row ${
+                              request.id === activeRequestId ? "is-active" : ""
+                            }`}
+                            key={request.id}
+                          >
+                            <button
+                              className="sidebar-tree__request"
+                              onClick={() => openRequestTab(request)}
+                              type="button"
+                            >
+                              <RequestIcon className="sidebar-tree__item-icon" />
+                              <span className={`badge method-${request.method}`}>
+                                {request.method}
+                              </span>
+                              <span className="sidebar-tree__request-name">{request.name}</span>
+                            </button>
+                            <button
+                              aria-label="Delete request"
+                              className="icon-button icon-button--tiny sidebar-tree__action sidebar-tree__delete-action"
+                              disabled={!canEditCollections}
+                              onClick={() => void deleteRequest(request)}
+                              title="Delete request"
+                              type="button"
+                            >
+                              <TrashIcon />
+                            </button>
+                          </div>
+                        ))}
+
+                        {collection.folders.map((folder) => (
+                          <SidebarFolderNode
+                            key={folder.id}
+                            folder={folder}
+                            expandedFolderIds={expandedFolderIds}
+                            onOpenRequest={openRequestTab}
+                            onToggleFolder={toggleFolder}
+                            onCreateRequest={createRequest}
+                            onCreateFolder={createFolder}
+                            onDeleteFolder={deleteFolder}
+                            onDeleteRequest={deleteRequest}
+                            activeRequestId={activeRequestId}
+                            canEditCollections={canEditCollections}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
-
-                  {collection.requests.map((request) => (
-                    <button
-                      className="sidebar-tree__request"
-                      key={request.id}
-                      onClick={() => openRequestTab(request)}
-                      type="button"
-                    >
-                      <RequestIcon className="sidebar-tree__item-icon" />
-                      <span className={`badge method-${request.method}`}>{request.method}</span>
-                      <span className="sidebar-tree__request-name">{request.name}</span>
-                    </button>
-                  ))}
-
-                  {collection.folders.map((folder) => (
-                    <SidebarFolderNode
-                      key={folder.id}
-                      folder={folder}
-                      expandedFolderIds={expandedFolderIds}
-                      onOpenRequest={openRequestTab}
-                      onToggleFolder={toggleFolder}
-                      onCreateRequest={createRequest}
-                      onCreateFolder={createFolder}
-                    />
-                  ))}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         ) : null}
