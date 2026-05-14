@@ -3,6 +3,10 @@ name: Deploy Mahac
 on:
   workflow_dispatch:
     inputs:
+      image_tag:
+        description: "Optional API/web image tag. Leave blank to keep the chart value."
+        required: false
+        type: string
       desktop_download_url:
         description: "Optional desktop app download URL. Leave blank to use the latest GitHub release asset."
         required: false
@@ -28,6 +32,22 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
 
     steps:
+      - name: Resolve image tag
+        id: image
+        env:
+          INPUT_IMAGE_TAG: ${{ github.event.inputs.image_tag || '' }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name || '' }}
+          WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+        run: |
+          set -euo pipefail
+
+          image_tag="${INPUT_IMAGE_TAG}"
+          if [ -z "${image_tag}" ] && [ "${WORKFLOW_NAME}" = "Docker Push" ]; then
+            image_tag="${WORKFLOW_HEAD_SHA}"
+          fi
+
+          echo "image_tag=${image_tag}" >> "${GITHUB_OUTPUT}"
+
       - name: Resolve desktop download URL
         id: desktop
         env:
@@ -94,6 +114,8 @@ jobs:
           DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH || env.DEFAULT_DEPLOY_PATH }}
           DESKTOP_APP_DOWNLOAD_URL: ${{ steps.desktop.outputs.desktop_download_url }}
+          IMAGE_TAG: ${{ steps.image.outputs.image_tag }}
+          DEPLOY_RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
 
@@ -103,16 +125,29 @@ jobs:
           fi
 
           ssh -i ~/.ssh/deploy_key -p "${DEPLOY_SSH_PORT}" "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
-            "DEPLOY_PATH='${DEPLOY_PATH}' DESKTOP_APP_DOWNLOAD_URL='${DESKTOP_APP_DOWNLOAD_URL}' bash -s" <<'EOF'
+            "DEPLOY_PATH='${DEPLOY_PATH}' DESKTOP_APP_DOWNLOAD_URL='${DESKTOP_APP_DOWNLOAD_URL}' IMAGE_TAG='${IMAGE_TAG}' DEPLOY_RUN_ID='${DEPLOY_RUN_ID}' bash -s" <<'EOF'
           set -euo pipefail
 
           export KUBECONFIG=~/.kube/config
           cd "${DEPLOY_PATH}"
 
-          helm dependency update
-          helm upgrade --install postman-clone . \
-            -f values-mahac.yaml \
-            -n postman-clone \
-            --create-namespace \
+          helm_args=(
+            upgrade --install postman-clone .
+            -f values-mahac.yaml
+            -n postman-clone
+            --create-namespace
             --set-string "api.env.DESKTOP_APP_DOWNLOAD_URL=${DESKTOP_APP_DOWNLOAD_URL}"
+            --set-string "api.podAnnotations.deploy-run-id=${DEPLOY_RUN_ID}"
+            --set-string "web.podAnnotations.deploy-run-id=${DEPLOY_RUN_ID}"
+          )
+
+          if [ -n "${IMAGE_TAG}" ]; then
+            helm_args+=(
+              --set-string "api.image.tag=${IMAGE_TAG}"
+              --set-string "web.image.tag=${IMAGE_TAG}"
+            )
+          fi
+
+          helm dependency update
+          helm "${helm_args[@]}"
           EOF
