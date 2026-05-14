@@ -34,6 +34,7 @@
 html,
 body,
 #root {
+  height: 100%;
   min-height: 100vh;
 }
 
@@ -96,6 +97,12 @@ textarea::placeholder {
   padding: 5px 8px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-small);
+  background: var(--surface);
+  color: var(--text);
+  color-scheme: dark;
+}
+
+.select option {
   background: var(--surface);
   color: var(--text);
 }
@@ -306,6 +313,18 @@ textarea::placeholder {
   background: transparent;
 }
 
+.icon-button--tiny {
+  width: 22px;
+  height: 22px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.icon-button--tiny .icon {
+  width: 13px;
+  height: 13px;
+}
+
 .text-action {
   display: inline-flex;
   align-items: center;
@@ -473,6 +492,23 @@ textarea::placeholder {
   gap: 6px;
 }
 
+.auth-form__password-wrap {
+  position: relative;
+}
+
+.auth-form__password-wrap .input {
+  padding-right: 36px;
+}
+
+.auth-form__password-toggle {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  height: calc(100% - 2px);
+  border-color: transparent;
+  background: transparent;
+}
+
 .auth-form__actions {
   display: flex;
   gap: 8px;
@@ -484,10 +520,12 @@ textarea::placeholder {
 }
 
 .workspace-shell {
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   display: grid;
   grid-template-rows: 44px minmax(0, 1fr) 22px;
   background: var(--app-bg);
+  overflow: hidden;
 }
 
 .app-header {
@@ -533,6 +571,7 @@ textarea::placeholder {
 
 .workspace-shell__body {
   min-height: 0;
+  overflow: hidden;
 }
 
 .workspace-panels {
@@ -615,6 +654,7 @@ textarea::placeholder {
 
 .sidebar {
   height: 100%;
+  min-height: 0;
   min-width: 0;
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr);
@@ -657,6 +697,7 @@ textarea::placeholder {
   gap: 8px;
   padding: 10px;
   background: var(--sidebar-bg);
+  overflow: hidden;
 }
 
 .sidebar__header,
@@ -709,6 +750,19 @@ textarea::placeholder {
   overflow: auto;
   align-content: start;
   grid-auto-rows: max-content;
+}
+
+.sidebar-tree,
+.sidebar-list {
+  flex: 1 1 auto;
+}
+
+.sidebar__tree-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding-left: 4px;
 }
 
 .sidebar-tree__collection,
@@ -953,7 +1007,9 @@ textarea::placeholder {
   min-height: 0;
   padding: 0;
   border: 0;
-  background: transparent;
+  background: var(--panel-bg);
+  color: var(--text-soft);
+  color-scheme: dark;
 }
 
 .workbench-tabs__environment-select:focus {
@@ -1078,6 +1134,9 @@ textarea::placeholder {
 }
 
 .editor-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   min-height: 30px;
   padding: 0 6px;
   border: 0;
@@ -1086,6 +1145,18 @@ textarea::placeholder {
   background: transparent;
   color: var(--text-muted);
   white-space: nowrap;
+}
+
+.editor-tabs__tab.has-data {
+  color: var(--text-soft);
+}
+
+.editor-tabs__data-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 108, 55, 0.12);
 }
 
 .editor-tabs__tab.is-active {
@@ -1124,6 +1195,139 @@ textarea::placeholder {
   border: 1px solid var(--border-strong);
   border-radius: 0;
   overflow: hidden;
+}
+
+.monaco-variable-found {
+  color: #72e49b !important;
+  background: rgba(82, 210, 115, 0.12);
+  border-bottom: 1px solid rgba(82, 210, 115, 0.78);
+}
+
+.monaco-variable-missing {
+  color: #ff9a9a !important;
+  background: rgba(255, 107, 107, 0.12);
+  border-bottom: 1px solid rgba(255, 107, 107, 0.78);
+}
+
+.variable-input {
+  position: relative;
+  min-width: 0;
+}
+
+.variable-input__editor {
+  display: block;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  outline: none;
+  caret-color: var(--text);
+}
+
+.variable-input__editor:empty::before {
+  content: attr(data-placeholder);
+  color: #6f7784;
+}
+
+.variable-input__hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.variable-inline {
+  border-bottom: 1px solid transparent;
+  font-family: "IBM Plex Mono", "Consolas", monospace;
+}
+
+.variable-inline--found {
+  color: #90e9a7;
+  background: rgba(82, 210, 115, 0.12);
+  border-bottom-color: rgba(82, 210, 115, 0.72);
+}
+
+.variable-inline--missing {
+  color: #ffabab;
+  background: rgba(255, 107, 107, 0.12);
+  border-bottom-color: rgba(255, 107, 107, 0.72);
+}
+
+.variable-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: grid;
+  gap: 2px;
+  max-height: 210px;
+  padding: 4px;
+  overflow: auto;
+  border: 1px solid var(--border-strong);
+  background: #15181d;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.34);
+}
+
+.variable-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 7px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.variable-suggestion:hover {
+  background: var(--surface-hover);
+}
+
+.variable-suggestion__key {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-size: 12px;
+}
+
+.variable-suggestion__meta {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.variable-validation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.variable-token {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 5px;
+  border: 1px solid transparent;
+  font-family: "IBM Plex Mono", "Consolas", monospace;
+  font-size: 11px;
+}
+
+.variable-token--found {
+  border-color: rgba(82, 210, 115, 0.35);
+  background: rgba(82, 210, 115, 0.12);
+  color: #90e9a7;
+}
+
+.variable-token--missing {
+  border-color: rgba(255, 107, 107, 0.42);
+  background: rgba(255, 107, 107, 0.12);
+  color: #ffabab;
 }
 
 .kv-table {

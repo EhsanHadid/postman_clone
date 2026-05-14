@@ -9,7 +9,9 @@ import {
 } from "../../components/AppIcons";
 import { CodeEditor } from "../../components/CodeEditor";
 import { KeyValueTable } from "../../components/KeyValueTable";
+import { VariableAwareInput } from "../../components/VariableAwareInput";
 import { api } from "../../services/api";
+import { getEnvironmentVariableSuggestions } from "../../services/environmentVariables";
 import { localDesktop } from "../../services/localDesktop";
 import { isDesktopRenderer, isPrivateNetworkUrl } from "../../services/runtime";
 import { useAppConfigStore } from "../../store/appConfigStore";
@@ -145,6 +147,42 @@ function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function hasEnabledKeyValueData(items: Array<{ key: string; value: string; enabled: boolean }>) {
+  return items.some((item) => item.enabled && (item.key.trim() || item.value.trim()));
+}
+
+function getTabHasData(tab: EditorTabKey, draft: RequestDefinition) {
+  if (tab === "params") {
+    return hasEnabledKeyValueData(draft.queryParams);
+  }
+
+  if (tab === "headers") {
+    return hasEnabledKeyValueData(draft.headers);
+  }
+
+  if (tab === "body") {
+    if (draft.protocolType === "trpc") {
+      return draft.body.trim().length > 0;
+    }
+
+    if (draft.bodyType === "form-urlencoded" || draft.bodyType === "multipart-form-data") {
+      return hasEnabledKeyValueData(draft.formData);
+    }
+
+    return draft.bodyType !== "none" && draft.body.trim().length > 0;
+  }
+
+  if (tab === "auth") {
+    return Boolean(draft.authType && draft.authType !== "none" && draft.authType !== "inherit");
+  }
+
+  if (tab === "scripts") {
+    return Boolean(draft.preRequestScript.trim() || draft.postResponseScript.trim());
+  }
+
+  return false;
+}
+
 export function RequestEditor() {
   const tabs = useTabsStore((state) => state.tabs);
   const activeTabId = useTabsStore((state) => state.activeTabId);
@@ -169,6 +207,8 @@ export function RequestEditor() {
     draft?.protocolType === "trpc" ? (draft.method === "POST" ? "POST" : "GET") : draft?.method ?? "GET";
   const availableMethods = draft?.protocolType === "trpc" ? trpcMethods : httpMethods;
   const trpcUsesGet = draft?.protocolType === "trpc" && effectiveMethod === "GET";
+  const variableSuggestions = getEnvironmentVariableSuggestions(environments, activeEnvironmentId);
+  const variableSuggestionKey = variableSuggestions.map((suggestion) => suggestion.key).join("|");
 
   const changeProtocol = (protocolType: RequestDefinition["protocolType"]) => {
     if (!draft) {
@@ -434,22 +474,24 @@ export function RequestEditor() {
           value={effectiveMethod}
         />
 
-        <input
-          className="input input--dense request-editor__url"
+        <VariableAwareInput
+          className="input input--dense"
+          wrapperClassName="request-editor__url"
           value={draft.url}
-          onChange={(event) => updateActiveDraft({ url: event.target.value })}
+          onChange={(url) => updateActiveDraft({ url })}
+          suggestions={variableSuggestions}
           placeholder={
             draft.protocolType === "trpc" ? "https://api.local" : "https://api.example.com/resource"
           }
         />
 
         {draft.protocolType === "trpc" ? (
-          <input
-            className="input input--dense request-editor__procedure"
+          <VariableAwareInput
+            className="input input--dense"
+            wrapperClassName="request-editor__procedure"
             value={draft.trpcProcedurePath ?? ""}
-            onChange={(event) =>
-              updateActiveDraft({ trpcProcedurePath: event.target.value || null })
-            }
+            onChange={(trpcProcedurePath) => updateActiveDraft({ trpcProcedurePath: trpcProcedurePath || null })}
+            suggestions={variableSuggestions}
             placeholder="router.procedure"
           />
         ) : null}
@@ -473,11 +515,14 @@ export function RequestEditor() {
             key={tab.key}
             className={`editor-tabs__tab ${
               activeTab.activeEditorTab === tab.key ? "is-active" : ""
-            }`}
+            } ${getTabHasData(tab.key, draft) ? "has-data" : ""}`}
             onClick={() => setActiveEditorTab(tab.key)}
             type="button"
           >
             {tab.label}
+            {getTabHasData(tab.key, draft) ? (
+              <span className="editor-tabs__data-dot" aria-label="Tab has data" />
+            ) : null}
           </button>
         ))}
       </div>
@@ -486,6 +531,7 @@ export function RequestEditor() {
         {activeTab.activeEditorTab === "params" ? (
           <KeyValueTable
             rows={draft.queryParams}
+            variableSuggestions={variableSuggestions}
             onChange={(queryParams) => updateActiveDraft({ queryParams })}
           />
         ) : null}
@@ -493,6 +539,7 @@ export function RequestEditor() {
         {activeTab.activeEditorTab === "headers" ? (
           <KeyValueTable
             rows={draft.headers}
+            variableSuggestions={variableSuggestions}
             onChange={(headers) => updateActiveDraft({ headers })}
           />
         ) : null}
@@ -507,8 +554,10 @@ export function RequestEditor() {
                     : "POST sends the tRPC input as JSON in the request body."}
                 </div>
                 <CodeEditor
+                  key={`trpc-body-${variableSuggestionKey}`}
                   height={310}
                   language="json"
+                  variableSuggestions={variableSuggestions}
                   value={draft.body}
                   onChange={(body) => updateActiveDraft({ body })}
                 />
@@ -539,8 +588,10 @@ export function RequestEditor() {
             {draft.protocolType !== "trpc" &&
             (draft.bodyType === "json" || draft.bodyType === "text") ? (
               <CodeEditor
+                key={`http-body-${draft.bodyType}-${variableSuggestionKey}`}
                 height={310}
                 language={draft.bodyType === "json" ? "json" : "plaintext"}
+                variableSuggestions={variableSuggestions}
                 value={draft.body}
                 onChange={(body) => updateActiveDraft({ body })}
               />
@@ -552,6 +603,7 @@ export function RequestEditor() {
               <KeyValueTable
                 rows={draft.formData}
                 mode="formData"
+                variableSuggestions={variableSuggestions}
                 onChange={(formData) => updateActiveDraft({ formData })}
               />
             ) : null}
@@ -594,15 +646,16 @@ export function RequestEditor() {
               <div className="request-editor__field-grid">
                 <label className="request-editor__field">
                   <span>Username</span>
-                  <input
+                  <VariableAwareInput
                     className="input input--dense"
                     placeholder="Username"
                     value={draft.authConfig?.username ?? ""}
-                    onChange={(event) =>
+                    suggestions={variableSuggestions}
+                    onChange={(username) =>
                       updateActiveDraft({
                         authConfig: {
                           ...(draft.authConfig ?? {}),
-                          username: event.target.value,
+                          username,
                         },
                       })
                     }
@@ -610,16 +663,16 @@ export function RequestEditor() {
                 </label>
                 <label className="request-editor__field">
                   <span>Password</span>
-                  <input
+                  <VariableAwareInput
                     className="input input--dense"
                     placeholder="Password"
-                    type="password"
                     value={draft.authConfig?.password ?? ""}
-                    onChange={(event) =>
+                    suggestions={variableSuggestions}
+                    onChange={(password) =>
                       updateActiveDraft({
                         authConfig: {
                           ...(draft.authConfig ?? {}),
-                          password: event.target.value,
+                          password,
                         },
                       })
                     }
@@ -631,15 +684,16 @@ export function RequestEditor() {
             {draft.authType === "bearer" ? (
               <label className="request-editor__field request-editor__field--wide">
                 <span>Token</span>
-                <input
+                <VariableAwareInput
                   className="input input--dense"
                   placeholder="Bearer token"
                   value={draft.authConfig?.token ?? ""}
-                  onChange={(event) =>
+                  suggestions={variableSuggestions}
+                  onChange={(token) =>
                     updateActiveDraft({
                       authConfig: {
                         ...(draft.authConfig ?? {}),
-                        token: event.target.value,
+                        token,
                       },
                     })
                   }
@@ -660,8 +714,10 @@ export function RequestEditor() {
             <div className="scripts-editor__panel">
               <div className="scripts-editor__label">Pre-request script</div>
               <CodeEditor
+                key={`pre-script-${variableSuggestionKey}`}
                 height={190}
                 language="javascript"
+                variableSuggestions={variableSuggestions}
                 value={draft.preRequestScript}
                 onChange={(preRequestScript) => updateActiveDraft({ preRequestScript })}
               />
@@ -669,8 +725,10 @@ export function RequestEditor() {
             <div className="scripts-editor__panel">
               <div className="scripts-editor__label">Post-response script</div>
               <CodeEditor
+                key={`post-script-${variableSuggestionKey}`}
                 height={190}
                 language="javascript"
+                variableSuggestions={variableSuggestions}
                 value={draft.postResponseScript}
                 onChange={(postResponseScript) => updateActiveDraft({ postResponseScript })}
               />

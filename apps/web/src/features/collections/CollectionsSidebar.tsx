@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CollectionTree, CollectionTreeFolder, RequestDefinition } from "@postman-clone/shared-types";
 import {
   ChevronDownIcon,
@@ -26,7 +26,9 @@ type SidebarMode = "collections" | "history" | "environments" | "cookies";
 
 interface SidebarTreeNodeProps {
   folder: CollectionTreeFolder;
+  expandedFolderIds: Set<string>;
   onOpenRequest: (request: RequestDefinition) => void;
+  onToggleFolder: (folderId: string) => void;
   onCreateRequest: (collectionId: string, folderId: string | null) => Promise<void>;
   onCreateFolder: (collectionId: string, parentFolderId: string | null) => Promise<void>;
 }
@@ -54,17 +56,19 @@ function SidebarModeButton({ active, hint, icon, onClick }: SidebarModeButtonPro
 
 function SidebarFolderNode({
   folder,
+  expandedFolderIds,
   onOpenRequest,
+  onToggleFolder,
   onCreateRequest,
   onCreateFolder,
 }: SidebarTreeNodeProps) {
-  const [expanded, setExpanded] = useState(true);
+  const expanded = expandedFolderIds.has(folder.id);
 
   return (
     <div className="sidebar-tree__branch">
       <button
         className="sidebar-tree__folder"
-        onClick={() => setExpanded((value) => !value)}
+        onClick={() => onToggleFolder(folder.id)}
         type="button"
       >
         <span className="sidebar-tree__caret">
@@ -102,7 +106,9 @@ function SidebarFolderNode({
             <SidebarFolderNode
               key={childFolder.id}
               folder={childFolder}
+              expandedFolderIds={expandedFolderIds}
               onOpenRequest={onOpenRequest}
+              onToggleFolder={onToggleFolder}
               onCreateRequest={onCreateRequest}
               onCreateFolder={onCreateFolder}
             />
@@ -145,6 +151,28 @@ function filterFolder(folder: CollectionTreeFolder, query: string): CollectionTr
   return null;
 }
 
+function collectFolderIds(collections: CollectionTree[]): string[] {
+  const ids: string[] = [];
+  const visitFolder = (folder: CollectionTreeFolder) => {
+    ids.push(folder.id);
+    folder.folders.forEach(visitFolder);
+  };
+
+  collections.forEach((collection) => collection.folders.forEach(visitFolder));
+  return ids;
+}
+
+function getFolderStateStorageKey(workspaceId: string | null) {
+  return `postman-clone-folder-expansion:${workspaceId ?? "global"}`;
+}
+
+function saveExpandedFolderIds(workspaceId: string | null, folderIds: Set<string>) {
+  window.localStorage.setItem(
+    getFolderStateStorageKey(workspaceId),
+    JSON.stringify([...folderIds]),
+  );
+}
+
 export function CollectionsSidebar() {
   const collections = useCollectionsStore((state) => state.collections);
   const fetchCollections = useCollectionsStore((state) => state.fetchCollections);
@@ -167,6 +195,7 @@ export function CollectionsSidebar() {
   const toggleEnvironments = useLayoutStore((state) => state.toggleEnvironments);
   const [search, setSearch] = useState("");
   const [mode, setMode] = useState<SidebarMode>("collections");
+  const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() => new Set());
   const canEditCollections = workspacePermissions.canEditCollections(
     activeWorkspace?.currentUserRole ?? null,
   );
@@ -199,6 +228,61 @@ export function CollectionsSidebar() {
           collection.requests.length > 0,
       );
   }, [collections, search]);
+
+  const allFolderIds = useMemo(() => collectFolderIds(collections), [collections]);
+  const filteredFolderIds = useMemo(
+    () => collectFolderIds(filteredCollections),
+    [filteredCollections],
+  );
+
+  useEffect(() => {
+    const storageKey = getFolderStateStorageKey(activeWorkspaceId);
+    const saved = window.localStorage.getItem(storageKey);
+
+    if (saved) {
+      try {
+        const savedIds = new Set(JSON.parse(saved) as string[]);
+        setExpandedFolderIds(savedIds);
+        return;
+      } catch {
+        window.localStorage.removeItem(storageKey);
+      }
+    }
+
+    const defaultIds = new Set(allFolderIds);
+    setExpandedFolderIds(defaultIds);
+    saveExpandedFolderIds(activeWorkspaceId, defaultIds);
+  }, [activeWorkspaceId, allFolderIds]);
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolderIds((current) => {
+      const next = new Set(current);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      saveExpandedFolderIds(activeWorkspaceId, next);
+      return next;
+    });
+  };
+
+  const expandAllFolders = () => {
+    setExpandedFolderIds((current) => {
+      const next = new Set([...current, ...filteredFolderIds]);
+      saveExpandedFolderIds(activeWorkspaceId, next);
+      return next;
+    });
+  };
+
+  const collapseAllFolders = () => {
+    setExpandedFolderIds((current) => {
+      const next = new Set(current);
+      filteredFolderIds.forEach((folderId) => next.delete(folderId));
+      saveExpandedFolderIds(activeWorkspaceId, next);
+      return next;
+    });
+  };
 
   const cookiesByDomain = useMemo(
     () =>
@@ -411,6 +495,28 @@ export function CollectionsSidebar() {
                 <CollectionIcon />
                 <span>collection</span>
               </button>
+              <div className="sidebar__tree-tools" aria-label="Folder tree controls">
+                <button
+                  aria-label="Expand all folders"
+                  className="icon-button icon-button--tiny"
+                  disabled={!filteredFolderIds.length}
+                  onClick={expandAllFolders}
+                  title="Expand all folders"
+                  type="button"
+                >
+                  <ChevronDownIcon />
+                </button>
+                <button
+                  aria-label="Collapse all folders"
+                  className="icon-button icon-button--tiny"
+                  disabled={!filteredFolderIds.length}
+                  onClick={collapseAllFolders}
+                  title="Collapse all folders"
+                  type="button"
+                >
+                  <ChevronRightIcon />
+                </button>
+              </div>
             </div>
 
             <div className="sidebar-tree">
@@ -458,7 +564,9 @@ export function CollectionsSidebar() {
                     <SidebarFolderNode
                       key={folder.id}
                       folder={folder}
+                      expandedFolderIds={expandedFolderIds}
                       onOpenRequest={openRequestTab}
+                      onToggleFolder={toggleFolder}
                       onCreateRequest={createRequest}
                       onCreateFolder={createFolder}
                     />

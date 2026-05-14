@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { EyeIcon, EyeOffIcon } from "../../components/AppIcons";
 import { useAuthStore } from "../../store/authStore";
 
 const brandLogoUrl = `${import.meta.env.BASE_URL}assets/brand/logo.svg`;
@@ -11,8 +12,9 @@ export function AuthForm() {
   const login = useAuthStore((state) => state.login);
   const register = useAuthStore((state) => state.register);
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [username, setUsername] = useState("demo");
-  const [password, setPassword] = useState("demo123");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -35,6 +37,8 @@ export function AuthForm() {
         <span>Username</span>
         <input
           className="input"
+          autoComplete={mode === "login" ? "username" : "new-username"}
+          required
           value={username}
           onChange={(event) => setUsername(event.target.value)}
         />
@@ -42,12 +46,25 @@ export function AuthForm() {
 
       <label className="auth-form__field">
         <span>Password</span>
-        <input
-          className="input"
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
+        <div className="auth-form__password-wrap">
+          <input
+            className="input"
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
+            required
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+          <button
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            className="icon-button auth-form__password-toggle"
+            onClick={() => setShowPassword((value) => !value)}
+            title={showPassword ? "Hide password" : "Show password"}
+            type="button"
+          >
+            {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
+        </div>
       </label>
 
       {error ? <div className="auth-form__error">{error}</div> : null}
@@ -58,7 +75,11 @@ export function AuthForm() {
         </button>
         <button
           className="button button-subtle"
-          onClick={() => setMode((current) => (current === "login" ? "register" : "login"))}
+          onClick={() => {
+            setMode((current) => (current === "login" ? "register" : "login"));
+            setUsername("");
+            setPassword("");
+          }}
           type="button"
         >
           {mode === "login" ? "Register Instead" : "Use Existing User"}

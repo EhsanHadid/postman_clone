@@ -1,10 +1,13 @@
 import type { KeyValueItem, MultipartFormValue } from "@postman-clone/shared-types";
+import type { EnvironmentVariableSuggestion } from "../services/environmentVariables";
+import { VariableAwareInput } from "./VariableAwareInput";
 
 type TableRow = KeyValueItem | MultipartFormValue;
 
 interface KeyValueTableProps<T extends TableRow> {
   rows: T[];
   mode?: "standard" | "formData";
+  variableSuggestions?: EnvironmentVariableSuggestion[];
   onChange: (rows: T[]) => void;
 }
 
@@ -13,6 +16,7 @@ const nextRowId = () => crypto.randomUUID();
 export function KeyValueTable<T extends TableRow>({
   rows,
   mode = "standard",
+  variableSuggestions = [],
   onChange,
 }: KeyValueTableProps<T>) {
   const updateRow = (index: number, patch: Partial<T>) => {
@@ -55,11 +59,12 @@ export function KeyValueTable<T extends TableRow>({
               onChange={(event) => updateRow(index, { enabled: event.target.checked } as T)}
             />
           </label>
-          <input
+          <VariableAwareInput
             className="input input--dense"
             value={row.key}
             placeholder="Key"
-            onChange={(event) => updateRow(index, { key: event.target.value } as T)}
+            suggestions={variableSuggestions}
+            onChange={(key) => updateRow(index, { key } as T)}
           />
           {mode === "formData" ? (
             <select
@@ -73,7 +78,7 @@ export function KeyValueTable<T extends TableRow>({
               <option value="file">File (Base64)</option>
             </select>
           ) : null}
-          <input
+          <VariableAwareInput
             className="input input--dense"
             value={row.value}
             placeholder={
@@ -81,7 +86,8 @@ export function KeyValueTable<T extends TableRow>({
                 ? "Paste base64 or data URL"
                 : "Value"
             }
-            onChange={(event) => updateRow(index, { value: event.target.value } as T)}
+            suggestions={variableSuggestions}
+            onChange={(value) => updateRow(index, { value } as T)}
           />
           <button
             className="text-action text-action--quiet"

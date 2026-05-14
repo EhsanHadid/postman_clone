@@ -37,8 +37,8 @@ export const SearchIcon = createIcon(
 
 export const SettingsIcon = createIcon(
   <>
-    <circle cx="8" cy="8" r="2.1" />
-    <path d="M8 2.5v1.1M8 12.4v1.1M12.4 8h1.1M2.5 8h1.1M11.9 4.1l-.8.8M4.9 11.1l-.8.8M11.9 11.9l-.8-.8M4.9 4.9l-.8-.8" />
+    <path d="M6.8 2.4h2.4l.35 1.55c.33.13.64.3.93.53l1.5-.48 1.2 2.08-1.15 1.08c.03.18.05.36.05.55s-.02.37-.05.55l1.15 1.08-1.2 2.08-1.5-.48c-.29.23-.6.4-.93.53L9.2 13.6H6.8l-.35-1.55a4.4 4.4 0 0 1-.93-.53l-1.5.48-1.2-2.08 1.15-1.08A3.3 3.3 0 0 1 3.92 8c0-.19.02-.37.05-.55L2.82 6.37l1.2-2.08 1.5.48c.29-.23.6-.4.93-.53L6.8 2.4Z" />
+    <circle cx="8" cy="8" r="1.75" />
   </>,
 );
 
@@ -148,3 +148,19 @@ export const LogoutIcon = createIcon(
 export const ChevronDownIcon = createIcon(<path d="M4.2 6.1L8 9.9l3.8-3.8" />);
 
 export const ChevronRightIcon = createIcon(<path d="M6.1 4.2L9.9 8l-3.8 3.8" />);
+
+export const EyeIcon = createIcon(
+  <>
+    <path d="M2.2 8s2.1-3.7 5.8-3.7S13.8 8 13.8 8 11.7 11.7 8 11.7 2.2 8 2.2 8Z" />
+    <circle cx="8" cy="8" r="1.45" />
+  </>,
+);
+
+export const EyeOffIcon = createIcon(
+  <>
+    <path d="M2.7 2.7l10.6 10.6" />
+    <path d="M6.1 4.7A5.4 5.4 0 0 1 8 4.3c3.7 0 5.8 3.7 5.8 3.7a9.1 9.1 0 0 1-1.8 2.2" />
+    <path d="M9.4 9.5A1.8 1.8 0 0 1 6.5 6.6" />
+    <path d="M4.4 5.6A9.2 9.2 0 0 0 2.2 8s2.1 3.7 5.8 3.7c.75 0 1.43-.15 2.03-.39" />
+  </>,
+);
