@@ -29,14 +29,17 @@ export function VariableAwareInput({
   wrapperClassName,
   onChange,
 }: VariableAwareInputProps) {
-  const editorRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
   const [caretIndex, setCaretIndex] = useState(0);
   const [focused, setFocused] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const activeToken = getActiveVariableToken(value, caretIndex);
   const suggestionByKey = useMemo(
     () => new Map(suggestions.map((suggestion) => [suggestion.key, suggestion])),
     [suggestions],
   );
+
   const highlightedParts = useMemo(() => {
     const parts: HighlightedPart[] = [];
     let lastIndex = 0;
@@ -67,79 +70,49 @@ export function VariableAwareInput({
 
     return parts.length ? parts : ([{ type: "text", value }] satisfies HighlightedPart[]);
   }, [suggestionByKey, value]);
+
+  const variableTitle = useMemo(
+    () =>
+      highlightedParts
+        .filter((part) => part.type === "variable")
+        .map((part) =>
+          part.suggestion
+            ? `${part.key}: ${part.suggestion.value}`
+            : `${part.key}: variable not found`,
+        )
+        .join("\n"),
+    [highlightedParts],
+  );
+
   const filteredSuggestions = useMemo(() => {
     if (activeToken === null) {
       return [];
     }
 
-    const normalizedToken = activeToken.toLowerCase();
+    const normalizedToken = activeToken.trim().toLowerCase();
     return suggestions
       .filter((suggestion) => suggestion.key.toLowerCase().includes(normalizedToken))
       .slice(0, 8);
   }, [activeToken, suggestions]);
   const showSuggestions = focused && activeToken !== null && filteredSuggestions.length > 0;
 
-  const getCaretIndex = () => {
-    const selection = window.getSelection();
-    const editor = editorRef.current;
-    if (!selection || !editor || selection.rangeCount === 0) {
-      return 0;
-    }
+  useEffect(() => {
+    setSelectedSuggestionIndex(0);
+  }, [activeToken, filteredSuggestions.length]);
 
-    const range = selection.getRangeAt(0);
-    const clone = range.cloneRange();
-    clone.selectNodeContents(editor);
-    clone.setEnd(range.endContainer, range.endOffset);
-    return clone.toString().length;
-  };
-
-  const setEditorCaret = (index: number) => {
-    const editor = editorRef.current;
-    if (!editor) {
+  const syncInputState = () => {
+    const input = inputRef.current;
+    if (!input) {
       return;
     }
 
-    const selection = window.getSelection();
-    if (!selection) {
-      return;
+    setCaretIndex(input.selectionStart ?? 0);
+    if (highlightRef.current) {
+      highlightRef.current.scrollLeft = input.scrollLeft;
     }
-
-    let remaining = index;
-    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
-    let node = walker.nextNode();
-
-    while (node) {
-      const textLength = node.textContent?.length ?? 0;
-      if (remaining <= textLength) {
-        const range = document.createRange();
-        range.setStart(node, remaining);
-        range.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        return;
-      }
-
-      remaining -= textLength;
-      node = walker.nextNode();
-    }
-
-    const range = document.createRange();
-    range.selectNodeContents(editor);
-    range.collapse(false);
-    selection.removeAllRanges();
-    selection.addRange(range);
-  };
-
-  const syncCaret = () => {
-    setCaretIndex(getCaretIndex());
   };
 
   const insertSuggestion = (key: string) => {
-    const editor = editorRef.current;
-    if (!editor) {
-      return;
-    }
-
     const startIndex = value.slice(0, caretIndex).lastIndexOf("{{");
     if (startIndex === -1) {
       return;
@@ -149,53 +122,29 @@ export function VariableAwareInput({
     const nextCaretIndex = startIndex + key.length + 4;
     onChange(nextValue);
     window.requestAnimationFrame(() => {
-      editor.focus();
-      setEditorCaret(nextCaretIndex);
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(nextCaretIndex, nextCaretIndex);
       setCaretIndex(nextCaretIndex);
+      syncInputState();
     });
   };
 
-  useEffect(() => {
-    if (!focused) {
-      return;
+  const selectHighlightedSuggestion = () => {
+    const selectedSuggestion = filteredSuggestions[selectedSuggestionIndex];
+    if (!selectedSuggestion) {
+      return false;
     }
 
-    window.requestAnimationFrame(() => setEditorCaret(caretIndex));
-  }, [caretIndex, focused, value]);
+    insertSuggestion(selectedSuggestion.key);
+    return true;
+  };
 
   return (
     <div className={`variable-input ${wrapperClassName ?? ""}`.trim()}>
       <div
-        className={`${className ?? ""} variable-input__editor`.trim()}
-        contentEditable
-        data-placeholder={placeholder}
-        onBlur={() => window.setTimeout(() => setFocused(false), 120)}
-        onClick={syncCaret}
-        onFocus={() => {
-          setFocused(true);
-          syncCaret();
-        }}
-        onInput={(event) => {
-          const nextValue = event.currentTarget.textContent ?? "";
-          const nextCaretIndex = getCaretIndex();
-          onChange(nextValue);
-          setCaretIndex(nextCaretIndex);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-          }
-        }}
-        onKeyUp={syncCaret}
-        onPaste={(event) => {
-          event.preventDefault();
-          const pastedText = event.clipboardData.getData("text/plain");
-          document.execCommand("insertText", false, pastedText);
-        }}
-        ref={editorRef}
-        role="textbox"
-        spellCheck={false}
-        suppressContentEditableWarning
+        aria-hidden="true"
+        className={`${className ?? ""} variable-input__highlight`.trim()}
+        ref={highlightRef}
       >
         {highlightedParts.map((part, index) =>
           part.type === "variable" ? (
@@ -204,27 +153,75 @@ export function VariableAwareInput({
                 part.found ? "variable-inline--found" : "variable-inline--missing"
               }`}
               key={`${part.value}-${index}`}
-              title={
-                part.suggestion
-                  ? `${part.key}: ${part.suggestion.value}`
-                  : `${part.key}: variable not found`
-              }
             >
               {part.value}
             </span>
           ) : (
-            <span key={`text-${index}`}>{part.value}</span>
+            <span key={`text-${index}`}>{part.value || "\u00a0"}</span>
           ),
         )}
       </div>
+      <input
+        className={`${className ?? ""} variable-input__control`.trim()}
+        onBlur={() => window.setTimeout(() => setFocused(false), 120)}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setCaretIndex(event.target.selectionStart ?? event.target.value.length);
+          window.requestAnimationFrame(syncInputState);
+        }}
+        onClick={syncInputState}
+        onFocus={() => {
+          setFocused(true);
+          syncInputState();
+        }}
+        onKeyDown={(event) => {
+          if (!showSuggestions) {
+            return;
+          }
+
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setSelectedSuggestionIndex((current) =>
+              Math.min(current + 1, filteredSuggestions.length - 1),
+            );
+          }
+
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setSelectedSuggestionIndex((current) => Math.max(current - 1, 0));
+          }
+
+          if (event.key === "Enter" || event.key === "Tab") {
+            if (selectHighlightedSuggestion()) {
+              event.preventDefault();
+            }
+          }
+
+          if (event.key === "Escape") {
+            setFocused(false);
+          }
+        }}
+        onKeyUp={syncInputState}
+        onScroll={syncInputState}
+        onSelect={syncInputState}
+        placeholder={placeholder}
+        ref={inputRef}
+        spellCheck={false}
+        title={variableTitle || undefined}
+        value={value}
+      />
       {showSuggestions ? (
         <div className="variable-suggestions" role="listbox">
-          {filteredSuggestions.map((suggestion) => (
+          {filteredSuggestions.map((suggestion, index) => (
             <button
-              className="variable-suggestion"
+              aria-selected={index === selectedSuggestionIndex}
+              className={`variable-suggestion ${
+                index === selectedSuggestionIndex ? "is-active" : ""
+              }`}
               key={suggestion.key}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => insertSuggestion(suggestion.key)}
+              role="option"
               type="button"
             >
               <span className="variable-suggestion__key">{suggestion.key}</span>

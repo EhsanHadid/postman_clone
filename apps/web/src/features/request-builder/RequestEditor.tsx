@@ -24,7 +24,7 @@ import { useCollectionsStore } from "../../store/collectionsStore";
 import { useDialogStore } from "../../store/dialogStore";
 import { useEnvironmentsStore } from "../../store/environmentsStore";
 import { useHistoryStore } from "../../store/historyStore";
-import { useTabsStore } from "../../store/tabsStore";
+import { hasMeaningfulRequestData, useTabsStore } from "../../store/tabsStore";
 import { useWorkspaceStore } from "../../store/workspaceStore";
 
 const editorTabs: Array<{ key: EditorTabKey; label: string }> = [
@@ -251,6 +251,9 @@ export function RequestEditor() {
   const variableSuggestionKey = variableSuggestions.map((suggestion) => suggestion.key).join("|");
   const requestPath = draft ? getRequestPath(collections, draft) : [];
   const requestParents = requestPath.slice(0, -1);
+  const canSaveRequest = Boolean(
+    activeTab && draft && (activeTab.requestId || hasMeaningfulRequestData(draft)),
+  );
 
   const changeProtocol = (protocolType: RequestDefinition["protocolType"]) => {
     if (!draft) {
@@ -304,6 +307,10 @@ export function RequestEditor() {
 
   const saveRequest = useCallback(async () => {
     if (!activeTab || !draft) {
+      return;
+    }
+
+    if (!activeTab.requestId && !hasMeaningfulRequestData(draft)) {
       return;
     }
 
@@ -527,7 +534,7 @@ export function RequestEditor() {
 
           <button
             className="text-action text-action--accent"
-            disabled={activeTab.isSending}
+            disabled={activeTab.isSending || !canSaveRequest}
             onClick={() => void saveRequest()}
             title="Save request (Ctrl+S)"
             type="button"

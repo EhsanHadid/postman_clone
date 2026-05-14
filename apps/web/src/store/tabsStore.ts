@@ -29,6 +29,37 @@ const createDefaultRequest = (
   updatedAt: new Date().toISOString(),
 });
 
+const DEFAULT_REQUEST_NAME = "Untitled Request";
+
+const hasEnabledKeyValueData = (items: Array<{ key: string; value: string; enabled: boolean }>) =>
+  items.some((item) => item.enabled && (item.key.trim() || item.value.trim()));
+
+const hasAuthData = (draft: RequestDefinition) => {
+  if (draft.authType === "basic") {
+    return Boolean(draft.authConfig?.username?.trim() || draft.authConfig?.password?.trim());
+  }
+
+  if (draft.authType === "bearer") {
+    return Boolean(draft.authConfig?.token?.trim());
+  }
+
+  return false;
+};
+
+export const hasMeaningfulRequestData = (draft: RequestDefinition) =>
+  Boolean(
+    (draft.name.trim() && draft.name.trim() !== DEFAULT_REQUEST_NAME) ||
+      draft.url.trim() ||
+      draft.trpcProcedurePath?.trim() ||
+      hasEnabledKeyValueData(draft.headers) ||
+      hasEnabledKeyValueData(draft.queryParams) ||
+      draft.body.trim() ||
+      hasEnabledKeyValueData(draft.formData) ||
+      hasAuthData(draft) ||
+      draft.preRequestScript.trim() ||
+      draft.postResponseScript.trim(),
+  );
+
 const nextTabId = () => `tab_${crypto.randomUUID()}`;
 
 interface TabsState {
@@ -37,6 +68,7 @@ interface TabsState {
   openRequestTab: (request: RequestDefinition) => void;
   createRequestTab: (collectionId?: string, folderId?: string | null) => void;
   closeTab: (tabId: string) => void;
+  closeTabs: (tabIds: string[]) => void;
   setActiveTab: (tabId: string) => void;
   updateActiveDraft: (patch: Partial<RequestDefinition>) => void;
   setActiveEditorTab: (tab: EditorTabKey) => void;
@@ -84,7 +116,7 @@ export const useTabsStore = create<TabsState>()(
               id: tabId,
               requestId: null,
               title: "New Request",
-              isDirty: true,
+              isDirty: false,
               isSending: false,
               activeEditorTab: "params",
               draft: createDefaultRequest(collectionId, folderId),
@@ -94,13 +126,17 @@ export const useTabsStore = create<TabsState>()(
           activeTabId: tabId,
         }));
       },
-      closeTab: (tabId) =>
+      closeTab: (tabId) => get().closeTabs([tabId]),
+      closeTabs: (tabIds) =>
         set((state) => {
-          const nextTabs = state.tabs.filter((tab) => tab.id !== tabId);
+          const tabIdsToClose = new Set(tabIds);
+          const nextTabs = state.tabs.filter((tab) => !tabIdsToClose.has(tab.id));
           return {
             tabs: nextTabs,
             activeTabId:
-              state.activeTabId === tabId ? nextTabs.at(-1)?.id ?? null : state.activeTabId,
+              state.activeTabId && tabIdsToClose.has(state.activeTabId)
+                ? nextTabs.at(-1)?.id ?? null
+                : state.activeTabId,
           };
         }),
       setActiveTab: (tabId) => set({ activeTabId: tabId }),
@@ -108,15 +144,19 @@ export const useTabsStore = create<TabsState>()(
         set((state) => ({
           tabs: state.tabs.map((tab) =>
             tab.id === state.activeTabId
-              ? {
-                  ...tab,
-                  title: patch.name ?? tab.title,
-                  isDirty: true,
-                  draft: {
+              ? (() => {
+                  const nextDraft = {
                     ...tab.draft,
                     ...patch,
-                  },
-                }
+                  };
+
+                  return {
+                    ...tab,
+                    title: patch.name ?? tab.title,
+                    isDirty: tab.requestId ? true : hasMeaningfulRequestData(nextDraft),
+                    draft: nextDraft,
+                  };
+                })()
               : tab,
           ),
         })),
