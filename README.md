@@ -111,6 +111,7 @@ DB_NAME=postman_clone
 DB_USER=root
 DB_PASSWORD=root
 SESSION_COOKIE_NAME=postman_clone_session
+REQUEST_BODY_LIMIT=50mb
 DB_SYNCHRONIZE=false
 DESKTOP_APP_DOWNLOAD_URL=
 ```
@@ -120,6 +121,7 @@ Important production values:
 - `APP_ORIGIN`: comma-separated allowed origins, for example `https://postman.mahac.af`
 - `DB_*`: MySQL connection settings
 - `DB_SYNCHRONIZE`: keep `false` in production
+- `REQUEST_BODY_LIMIT`: maximum JSON/form request size accepted by the API, useful for large collection imports and backup restores.
 - `DESKTOP_APP_DOWNLOAD_URL`: public URL for the latest desktop installer. The web app fetches this through `/api/app-config`.
 - `DOCKER_LOCALHOST_ALIAS`: set to `host.docker.internal` when the API runs in Docker and should map localhost requests to the host machine.
 

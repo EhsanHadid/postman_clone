@@ -817,6 +817,7 @@ textarea::placeholder {
   display: grid;
   gap: 4px;
   align-content: start;
+  min-height: 10px;
 }
 
 .sidebar-tree__folder,
@@ -838,6 +839,7 @@ textarea::placeholder {
   align-items: center;
   gap: 6px;
   cursor: pointer;
+  position: relative;
 }
 
 .sidebar-tree__request {
@@ -849,9 +851,53 @@ textarea::placeholder {
 
 .sidebar-tree__request-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 2px;
+  position: relative;
+}
+
+.sidebar-tree__folder[draggable="true"],
+.sidebar-tree__request-row[draggable="true"] {
+  cursor: grab;
+}
+
+.sidebar-tree__folder.is-dragging,
+.sidebar-tree__request-row.is-dragging {
+  opacity: 0.48;
+}
+
+.sidebar-tree__collection-body.is-drop-target,
+.sidebar-tree__children.is-drop-target,
+.sidebar-tree__folder.is-drop-target {
+  outline: 1px dashed rgba(255, 108, 55, 0.55);
+  outline-offset: 2px;
+}
+
+.sidebar-tree__folder.is-drop-before::before,
+.sidebar-tree__folder.is-drop-after::after,
+.sidebar-tree__request-row.is-drop-before::before,
+.sidebar-tree__request-row.is-drop-after::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.sidebar-tree__folder.is-drop-before::before,
+.sidebar-tree__request-row.is-drop-before::before {
+  top: -3px;
+}
+
+.sidebar-tree__folder.is-drop-after::after,
+.sidebar-tree__request-row.is-drop-after::after {
+  bottom: -3px;
 }
 
 .sidebar-tree__request-row.is-active .sidebar-tree__request {

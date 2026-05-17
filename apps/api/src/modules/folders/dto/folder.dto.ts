@@ -39,6 +39,10 @@ export class CreateFolderDto {
 export class UpdateFolderDto {
   @IsOptional()
   @IsString()
+  collectionId?: string;
+
+  @IsOptional()
+  @IsString()
   parentFolderId?: string | null;
 
   @IsOptional()

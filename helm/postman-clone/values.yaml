@@ -38,6 +38,7 @@ api:
     DB_NAME: postman_clone
     DB_SYNCHRONIZE: "false"
     SESSION_COOKIE_NAME: postman_clone_session
+    REQUEST_BODY_LIMIT: "50mb"
     DOCKER_LOCALHOST_ALIAS: ""
     DESKTOP_APP_DOWNLOAD_URL: ""
 
@@ -230,7 +231,7 @@ ingress:
   annotations: {}
     # cert-manager.io/cluster-issuer: letsencrypt-prod
     # nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    # nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # nginx.ingress.kubernetes.io/proxy-body-size: "50m"
   hosts:
     - host: postman-clone.example.com
       paths:

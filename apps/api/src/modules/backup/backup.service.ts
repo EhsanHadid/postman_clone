@@ -157,7 +157,11 @@ export class BackupService {
         );
       }
 
-      for (const rawFolder of foldersData as Array<Record<string, unknown>>) {
+      const sortedFoldersData = this.sortFoldersForRestore(
+        foldersData as Array<Record<string, unknown>>,
+      );
+
+      for (const rawFolder of sortedFoldersData) {
         await manager.save(FolderEntity, manager.create(FolderEntity, rawFolder));
       }
 
@@ -212,5 +216,52 @@ export class BackupService {
       success: true,
       restoredAt: new Date().toISOString(),
     };
+  }
+
+  private sortFoldersForRestore(
+    folders: Array<Record<string, unknown>>,
+  ): Array<Record<string, unknown>> {
+    const foldersById = new Map<string, Record<string, unknown>>();
+
+    for (const folder of folders) {
+      if (typeof folder.id !== "string" || !folder.id.trim()) {
+        throw new BadRequestException("Backup contains a folder without a valid id.");
+      }
+
+      foldersById.set(folder.id, folder);
+    }
+
+    const sortedFolders: Array<Record<string, unknown>> = [];
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+
+    const visit = (folder: Record<string, unknown>) => {
+      const folderId = folder.id as string;
+      if (visited.has(folderId)) {
+        return;
+      }
+
+      if (visiting.has(folderId)) {
+        throw new BadRequestException("Backup contains a circular folder relationship.");
+      }
+
+      visiting.add(folderId);
+
+      if (typeof folder.parentFolderId === "string" && folder.parentFolderId.trim()) {
+        const parentFolder = foldersById.get(folder.parentFolderId);
+        if (!parentFolder) {
+          throw new BadRequestException("Backup contains a folder with a missing parent.");
+        }
+
+        visit(parentFolder);
+      }
+
+      visiting.delete(folderId);
+      visited.add(folderId);
+      sortedFolders.push(folder);
+    };
+
+    folders.forEach(visit);
+    return sortedFolders;
   }
 }

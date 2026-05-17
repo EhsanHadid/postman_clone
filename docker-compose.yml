@@ -32,6 +32,7 @@ services:
       DB_USER: root
       DB_PASSWORD: root
       DB_SYNCHRONIZE: "false"
+      REQUEST_BODY_LIMIT: 50mb
       DOCKER_LOCALHOST_ALIAS: host.docker.internal
     ports:
       - "4000:4000"

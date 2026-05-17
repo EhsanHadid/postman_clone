@@ -2,10 +2,14 @@ import "reflect-metadata";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import cookieParser from "cookie-parser";
+import { json, urlencoded } from "express";
 import { AppModule } from "./app.module";
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const requestBodyLimit = process.env.REQUEST_BODY_LIMIT ?? "50mb";
+  app.use(json({ limit: requestBodyLimit }));
+  app.use(urlencoded({ extended: true, limit: requestBodyLimit }));
   app.use(cookieParser());
   app.useGlobalPipes(
     new ValidationPipe({

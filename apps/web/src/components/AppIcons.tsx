@@ -103,6 +103,13 @@ export const RequestIcon = createIcon(
   </>,
 );
 
+export const CopyIcon = createIcon(
+  <>
+    <rect height="7.2" rx="1" width="6.8" x="5.2" y="5.2" />
+    <path d="M4 10.8H3.6A1.2 1.2 0 0 1 2.4 9.6v-6A1.2 1.2 0 0 1 3.6 2.4h6a1.2 1.2 0 0 1 1.2 1.2V4" />
+  </>,
+);
+
 export const HttpIcon = createIcon(
   <>
     <path d="M8 2.6c2.9 0 5.2 2.3 5.2 5.2S10.9 13 8 13 2.8 10.7 2.8 7.8 5.1 2.6 8 2.6Z" />

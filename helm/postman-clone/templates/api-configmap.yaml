@@ -18,6 +18,7 @@ data:
   DB_NAME: {{ include "postman-clone.databaseName" . | quote }}
   DB_SYNCHRONIZE: {{ .Values.api.env.DB_SYNCHRONIZE | quote }}
   SESSION_COOKIE_NAME: {{ .Values.api.env.SESSION_COOKIE_NAME | quote }}
+  REQUEST_BODY_LIMIT: {{ .Values.api.env.REQUEST_BODY_LIMIT | quote }}
   DESKTOP_APP_DOWNLOAD_URL: {{ .Values.api.env.DESKTOP_APP_DOWNLOAD_URL | quote }}
   {{- if .Values.api.env.DOCKER_LOCALHOST_ALIAS }}
   DOCKER_LOCALHOST_ALIAS: {{ .Values.api.env.DOCKER_LOCALHOST_ALIAS | quote }}

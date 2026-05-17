@@ -24,6 +24,7 @@ api:
   env:
     APP_ORIGIN: "https://postman-clone.your-domain.com"
     DB_SYNCHRONIZE: "false"
+    REQUEST_BODY_LIMIT: "50mb"
     DESKTOP_APP_DOWNLOAD_URL: ""
 
   secrets:
@@ -74,7 +75,7 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
   hosts:
     - host: postman-clone.your-domain.com
       paths:

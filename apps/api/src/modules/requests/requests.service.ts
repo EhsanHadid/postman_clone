@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { IsNull, Repository } from "typeorm";
 import {
   CollectionEntity,
   FolderEntity,
@@ -100,7 +100,9 @@ export class RequestsService {
   ): Promise<RequestEntity> {
     const request = await this.findOwned(userId, requestId);
     await this.permissions.requireCollectionWrite(userId, request.collection.workspaceId);
-    await this.createSnapshot(request);
+    if (this.shouldCreateSnapshot(dto)) {
+      await this.createSnapshot(request);
+    }
 
     if (dto.collectionId && dto.collectionId !== request.collectionId) {
       const collection = await this.collectionRepository.findOne({
@@ -154,12 +156,13 @@ export class RequestsService {
   async duplicate(userId: string, requestId: string): Promise<RequestEntity> {
     const request = await this.findOwned(userId, requestId);
     await this.permissions.requireCollectionWrite(userId, request.collection.workspaceId);
+    const copyName = await this.createCopyName(request);
 
     return this.requestRepository.save(
       this.requestRepository.create({
         collectionId: request.collectionId,
         folderId: request.folderId,
-        name: `${request.name} Copy`,
+        name: copyName,
         protocolType: request.protocolType,
         method: request.method,
         url: request.url,
@@ -201,5 +204,52 @@ export class RequestsService {
         postResponseScript: request.postResponseScript,
       }),
     );
+  }
+
+  private shouldCreateSnapshot(dto: UpdateRequestDto): boolean {
+    return [
+      "name",
+      "protocolType",
+      "method",
+      "url",
+      "trpcProcedurePath",
+      "headers",
+      "queryParams",
+      "bodyType",
+      "body",
+      "formData",
+      "authType",
+      "authConfig",
+      "preRequestScript",
+      "postResponseScript",
+    ].some((key) => key in dto);
+  }
+
+  private async createCopyName(request: RequestEntity): Promise<string> {
+    const siblingRequests = await this.requestRepository.find({
+      where: {
+        collectionId: request.collectionId,
+        folderId: request.folderId ?? IsNull(),
+      },
+      select: { name: true },
+    });
+    const siblingNames = new Set(
+      siblingRequests.map((sibling) => sibling.name.trim().toLowerCase()),
+    );
+    const baseName = `${request.name.trim()} copy`.trim();
+
+    if (!siblingNames.has(baseName.toLowerCase())) {
+      return baseName;
+    }
+
+    let copyIndex = 2;
+    let candidate = `${baseName} ${copyIndex}`;
+
+    while (siblingNames.has(candidate.toLowerCase())) {
+      copyIndex += 1;
+      candidate = `${baseName} ${copyIndex}`;
+    }
+
+    return candidate;
   }
 }

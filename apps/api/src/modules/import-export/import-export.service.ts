@@ -1,7 +1,7 @@
 import { ConflictException, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import path from "node:path";
-import { Repository } from "typeorm";
+import { IsNull, Repository } from "typeorm";
 import {
   CollectionEntity,
   EnvironmentEntity,
@@ -76,23 +76,14 @@ export class ImportExportService {
       dto.name ??
       this.readString(payload.info, "name") ??
       "Imported Postman Collection";
-    const resolvedCollectionName = await this.resolveImportCollectionName(
+    const collectionAuth = this.parseAuth(payload.auth as PostmanAuth | undefined);
+    const collection = await this.createImportedCollection(
+      userId,
       workspaceId,
       collectionName,
+      "Imported from Postman",
       dto.conflictStrategy,
-    );
-
-    const collectionAuth = this.parseAuth(payload.auth as PostmanAuth | undefined);
-    const collection = await this.collectionRepository.save(
-      this.collectionRepository.create({
-        userId,
-        workspaceId,
-        name: resolvedCollectionName,
-        description: "Imported from Postman",
-        sortOrder: 0,
-        authType: collectionAuth.authType,
-        authConfig: collectionAuth.authConfig,
-      }),
+      collectionAuth,
     );
 
     const importedCount = await this.importItems(
@@ -100,6 +91,7 @@ export class ImportExportService {
       null,
       Array.isArray(payload.item) ? payload.item : [],
       warnings,
+      dto.conflictStrategy === "mergeOverride",
     );
     const importedVariableCount = await this.importCollectionVariables(
       userId,
@@ -125,7 +117,14 @@ export class ImportExportService {
     const collectionName = dto.name ?? this.readString(workspace, "name") ?? this.readString(dto.payload, "name") ?? "Imported Insomnia Collection";
     const collection = await this.createImportedCollection(userId, workspaceId, collectionName, "Imported from Insomnia", dto.conflictStrategy);
     const rootParentId = typeof workspace?._id === "string" ? workspace._id : undefined;
-    const importedCount = await this.importInsomniaChildren(collection.id, null, resources, rootParentId, warnings);
+    const importedCount = await this.importInsomniaChildren(
+      collection.id,
+      null,
+      resources,
+      rootParentId,
+      warnings,
+      dto.conflictStrategy === "mergeOverride",
+    );
     const importedVariableCount = await this.importCollectionVariables(
       userId,
       workspaceId,
@@ -148,7 +147,13 @@ export class ImportExportService {
     const collectionName = dto.name ?? this.readString(dto.payload, "name") ?? "Imported Hoppscotch Collection";
     const collection = await this.createImportedCollection(userId, workspaceId, collectionName, "Imported from Hoppscotch", dto.conflictStrategy);
     const items = this.normalizeHoppscotchItems(dto.payload);
-    const importedCount = await this.importItems(collection.id, null, items, warnings);
+    const importedCount = await this.importItems(
+      collection.id,
+      null,
+      items,
+      warnings,
+      dto.conflictStrategy === "mergeOverride",
+    );
     const importedVariableCount = await this.importCollectionVariables(
       userId,
       workspaceId,
@@ -170,52 +175,69 @@ export class ImportExportService {
     name: string,
     description: string,
     conflictStrategy?: ImportConflictStrategy,
+    auth?: {
+      authType: "basic" | "bearer" | null;
+      authConfig: Record<string, string> | null;
+    },
   ): Promise<CollectionEntity> {
-    const resolvedName = await this.resolveImportCollectionName(
-      workspaceId,
-      name,
-      conflictStrategy,
-    );
+    const normalizedName = name.trim() || "Imported Collection";
+    const existingCollection = await this.findCollectionByName(workspaceId, normalizedName);
 
+    if (existingCollection) {
+      if (conflictStrategy === "add") {
+        return this.saveImportedCollection(
+          userId,
+          workspaceId,
+          await this.createCopyName(workspaceId, normalizedName),
+          description,
+          auth,
+        );
+      }
+
+      if (conflictStrategy === "mergeOverride") {
+        existingCollection.description = description;
+        existingCollection.authType = auth?.authType ?? null;
+        existingCollection.authConfig = auth?.authConfig ?? null;
+        return this.collectionRepository.save(existingCollection);
+      }
+
+      throw new ConflictException({
+        code: "COLLECTION_NAME_CONFLICT",
+        message: `A collection named "${normalizedName}" already exists in this workspace.`,
+        collectionName: normalizedName,
+      });
+    }
+
+    return this.saveImportedCollection(
+      userId,
+      workspaceId,
+      normalizedName,
+      description,
+      auth,
+    );
+  }
+
+  private async saveImportedCollection(
+    userId: string,
+    workspaceId: string,
+    name: string,
+    description: string,
+    auth?: {
+      authType: "basic" | "bearer" | null;
+      authConfig: Record<string, string> | null;
+    },
+  ): Promise<CollectionEntity> {
     return this.collectionRepository.save(
       this.collectionRepository.create({
         userId,
         workspaceId,
-        name: resolvedName,
+        name,
         description,
         sortOrder: 0,
-        authType: null,
-        authConfig: null,
+        authType: auth?.authType ?? null,
+        authConfig: auth?.authConfig ?? null,
       }),
     );
-  }
-
-  private async resolveImportCollectionName(
-    workspaceId: string,
-    name: string,
-    conflictStrategy?: ImportConflictStrategy,
-  ): Promise<string> {
-    const normalizedName = name.trim() || "Imported Collection";
-    const existingCollection = await this.findCollectionByName(workspaceId, normalizedName);
-
-    if (!existingCollection) {
-      return normalizedName;
-    }
-
-    if (conflictStrategy === "add") {
-      return this.createCopyName(workspaceId, normalizedName);
-    }
-
-    if (conflictStrategy === "mergeOverride") {
-      await this.collectionRepository.remove(existingCollection);
-      return normalizedName;
-    }
-
-    throw new ConflictException({
-      code: "COLLECTION_NAME_CONFLICT",
-      message: `A collection named "${normalizedName}" already exists in this workspace.`,
-      collectionName: normalizedName,
-    });
   }
 
   private async createCopyName(workspaceId: string, name: string): Promise<string> {
@@ -391,6 +413,7 @@ export class ImportExportService {
     resources: Array<Record<string, unknown>>,
     parentId: string | undefined,
     warnings: string[],
+    mergeOverride = false,
   ): Promise<number> {
     let importedCount = 0;
     const children = resources.filter((resource) => resource.parentId === parentId);
@@ -399,16 +422,15 @@ export class ImportExportService {
       const type = resource._type;
 
       if (type === "request_group") {
-        const folder = await this.folderRepository.save(
-          this.folderRepository.create({
+        const folderPayload = {
             collectionId,
             parentFolderId,
             name: this.readString(resource, "name") ?? "Imported Folder",
             sortOrder: importedCount * 100,
             authType: null,
             authConfig: null,
-          }),
-        );
+        };
+        const folder = await this.saveImportedFolder(folderPayload, mergeOverride);
 
         importedCount += await this.importInsomniaChildren(
           collectionId,
@@ -416,6 +438,7 @@ export class ImportExportService {
           resources,
           this.readString(resource, "_id"),
           warnings,
+          mergeOverride,
         );
         continue;
       }
@@ -425,8 +448,8 @@ export class ImportExportService {
       }
 
       const parsedRequest = this.parseInsomniaRequest(resource, warnings);
-      await this.requestRepository.save(
-        this.requestRepository.create({
+      await this.saveImportedRequest(
+        {
           collectionId,
           folderId: parentFolderId,
           name: this.readString(resource, "name") ?? "Imported Request",
@@ -444,7 +467,8 @@ export class ImportExportService {
           preRequestScript: "",
           postResponseScript: "",
           sortOrder: importedCount * 100,
-        }),
+        },
+        mergeOverride,
       );
       importedCount += 1;
     }
@@ -664,20 +688,22 @@ export class ImportExportService {
     parentFolderId: string | null,
     items: unknown[],
     warnings: string[],
+    mergeOverride = false,
   ): Promise<number> {
     let importedCount = 0;
 
     for (const item of items as Array<Record<string, unknown>>) {
       if (Array.isArray(item.item)) {
-        const folder = await this.folderRepository.save(
-          this.folderRepository.create({
+        const folder = await this.saveImportedFolder(
+          {
             collectionId,
             parentFolderId,
             name: typeof item.name === "string" ? item.name : "Imported Folder",
             sortOrder: importedCount * 100,
             authType: null,
             authConfig: null,
-          }),
+          },
+          mergeOverride,
         );
 
         importedCount += await this.importItems(
@@ -685,6 +711,7 @@ export class ImportExportService {
           folder.id,
           item.item,
           warnings,
+          mergeOverride,
         );
         continue;
       }
@@ -697,8 +724,8 @@ export class ImportExportService {
       const requestPayload = item.request as Record<string, unknown>;
       const parsedRequest = this.parseRequest(requestPayload, warnings);
 
-      await this.requestRepository.save(
-        this.requestRepository.create({
+      await this.saveImportedRequest(
+        {
           collectionId,
           folderId: parentFolderId,
           name: typeof item.name === "string" ? item.name : "Imported Request",
@@ -716,7 +743,8 @@ export class ImportExportService {
           preRequestScript: "",
           postResponseScript: "",
           sortOrder: importedCount * 100,
-        }),
+        },
+        mergeOverride,
       );
 
       if (Array.isArray(item.event) && item.event.length) {
@@ -729,6 +757,72 @@ export class ImportExportService {
     }
 
     return importedCount;
+  }
+
+  private async saveImportedFolder(
+    payload: Pick<
+      FolderEntity,
+      "collectionId" | "parentFolderId" | "name" | "sortOrder" | "authType" | "authConfig"
+    >,
+    mergeOverride: boolean,
+  ): Promise<FolderEntity> {
+    if (mergeOverride) {
+      const existingFolder = await this.folderRepository.findOne({
+        where: {
+          collectionId: payload.collectionId,
+          parentFolderId: payload.parentFolderId ?? IsNull(),
+          name: payload.name,
+        },
+      });
+
+      if (existingFolder) {
+        Object.assign(existingFolder, payload);
+        return this.folderRepository.save(existingFolder);
+      }
+    }
+
+    return this.folderRepository.save(this.folderRepository.create(payload));
+  }
+
+  private async saveImportedRequest(
+    payload: Pick<
+      RequestEntity,
+      | "collectionId"
+      | "folderId"
+      | "name"
+      | "protocolType"
+      | "method"
+      | "url"
+      | "trpcProcedurePath"
+      | "headers"
+      | "queryParams"
+      | "bodyType"
+      | "body"
+      | "formData"
+      | "authType"
+      | "authConfig"
+      | "preRequestScript"
+      | "postResponseScript"
+      | "sortOrder"
+    >,
+    mergeOverride: boolean,
+  ): Promise<RequestEntity> {
+    if (mergeOverride) {
+      const existingRequest = await this.requestRepository.findOne({
+        where: {
+          collectionId: payload.collectionId,
+          folderId: payload.folderId ?? IsNull(),
+          name: payload.name,
+        },
+      });
+
+      if (existingRequest) {
+        Object.assign(existingRequest, payload);
+        return this.requestRepository.save(existingRequest);
+      }
+    }
+
+    return this.requestRepository.save(this.requestRepository.create(payload));
   }
 
   private parseRequest(

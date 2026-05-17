@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import type {
   CollectionTree,
   CollectionTreeFolder,
@@ -9,6 +16,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CollectionIcon,
+  CopyIcon,
   CookieIcon,
   EnvironmentIcon,
   FolderIcon,
@@ -39,8 +47,29 @@ interface SidebarTreeNodeProps {
   onCreateFolder: (collectionId: string, parentFolderId: string | null) => Promise<void>;
   onDeleteFolder: (folder: CollectionTreeFolder) => Promise<void>;
   onDeleteRequest: (request: RequestDefinition) => Promise<void>;
+  onDuplicateRequest: (request: RequestDefinition) => Promise<void>;
+  onMoveRequest: (
+    requestId: string,
+    target: RequestMoveTarget,
+    targetRequestId?: string,
+    placement?: RequestDropPlacement,
+  ) => Promise<void>;
+  onMoveFolder: (
+    folderId: string,
+    target: FolderMoveTarget,
+    targetFolderId?: string,
+    placement?: RequestDropPlacement,
+  ) => Promise<void>;
+  onRequestDragStart: (requestId: string) => void;
+  onFolderDragStart: (folderId: string) => void;
+  onRequestDragEnd: () => void;
+  onFolderDragEnd: () => void;
   activeRequestId: string | null;
   canEditCollections: boolean;
+  draggedRequestId: string | null;
+  draggedFolderId: string | null;
+  dropIndicator: DropIndicator | null;
+  onDropIndicatorChange: (indicator: DropIndicator | null) => void;
 }
 
 interface SidebarModeButtonProps {
@@ -49,6 +78,24 @@ interface SidebarModeButtonProps {
   icon: ReactNode;
   onClick: () => void;
 }
+
+type RequestDropPlacement = "before" | "after";
+
+type RequestMoveTarget = {
+  collectionId: string;
+  folderId: string | null;
+};
+
+type FolderMoveTarget = {
+  collectionId: string;
+  parentFolderId: string | null;
+};
+
+type DropIndicator = {
+  itemType: "request" | "folder";
+  itemId: string;
+  placement: RequestDropPlacement;
+};
 
 function SidebarModeButton({ active, hint, icon, onClick }: SidebarModeButtonProps) {
   return (
@@ -73,10 +120,26 @@ function SidebarFolderNode({
   onCreateFolder,
   onDeleteFolder,
   onDeleteRequest,
+  onDuplicateRequest,
+  onMoveRequest,
+  onMoveFolder,
+  onRequestDragStart,
+  onFolderDragStart,
+  onRequestDragEnd,
+  onFolderDragEnd,
   activeRequestId,
   canEditCollections,
+  draggedRequestId,
+  draggedFolderId,
+  dropIndicator,
+  onDropIndicatorChange,
 }: SidebarTreeNodeProps) {
   const expanded = expandedFolderIds.has(folder.id);
+  const isDraggingFolder = draggedFolderId === folder.id;
+  const folderDropClass =
+    dropIndicator?.itemType === "folder" && dropIndicator.itemId === folder.id
+      ? `is-drop-${dropIndicator.placement}`
+      : "";
 
   const handleFolderKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -88,7 +151,75 @@ function SidebarFolderNode({
   return (
     <div className="sidebar-tree__branch">
       <div
-        className="sidebar-tree__folder"
+        className={`sidebar-tree__folder ${
+          draggedRequestId || (draggedFolderId && draggedFolderId !== folder.id)
+            ? "is-drop-target"
+            : ""
+        } ${isDraggingFolder ? "is-dragging" : ""} ${folderDropClass}`}
+        draggable={canEditCollections}
+        onDragStart={(event) => {
+          event.stopPropagation();
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("application/x-folder-id", folder.id);
+          event.dataTransfer.setData("text/plain", folder.id);
+          onFolderDragStart(folder.id);
+        }}
+        onDragEnd={() => {
+          onDropIndicatorChange(null);
+          onFolderDragEnd();
+        }}
+        onDragOver={(event) => {
+          if (!canEditCollections) {
+            return;
+          }
+
+          if (draggedRequestId) {
+            event.preventDefault();
+            return;
+          }
+
+          if (draggedFolderId && draggedFolderId !== folder.id) {
+            event.preventDefault();
+            onDropIndicatorChange({
+              itemType: "folder",
+              itemId: folder.id,
+              placement: getRequestDropPlacement(event),
+            });
+          }
+        }}
+        onDragLeave={() => {
+          if (dropIndicator?.itemType === "folder" && dropIndicator.itemId === folder.id) {
+            onDropIndicatorChange(null);
+          }
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const requestId = event.dataTransfer.getData("application/x-request-id");
+          const folderId = event.dataTransfer.getData("application/x-folder-id");
+          onDropIndicatorChange(null);
+
+          if (!canEditCollections) {
+            return;
+          }
+
+          if (requestId) {
+            void onMoveRequest(
+              requestId,
+              { collectionId: folder.collectionId, folderId: folder.id },
+            );
+            return;
+          }
+
+          if (folderId && folderId !== folder.id) {
+            void onMoveFolder(
+              folderId,
+              { collectionId: folder.collectionId, parentFolderId: folder.parentFolderId },
+              folder.id,
+              getRequestDropPlacement(event),
+            );
+          }
+        }}
         onClick={() => onToggleFolder(folder.id)}
         onKeyDown={handleFolderKeyDown}
         role="button"
@@ -143,7 +274,45 @@ function SidebarFolderNode({
       </div>
 
       {expanded ? (
-        <div className="sidebar-tree__children">
+        <div
+          className={`sidebar-tree__children ${
+            draggedRequestId || (draggedFolderId && draggedFolderId !== folder.id)
+              ? "is-drop-target"
+              : ""
+          }`}
+          onDragOver={(event) => {
+            if (!canEditCollections || (!draggedRequestId && !draggedFolderId)) {
+              return;
+            }
+            event.preventDefault();
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const requestId = event.dataTransfer.getData("application/x-request-id");
+            const folderId = event.dataTransfer.getData("application/x-folder-id");
+            onDropIndicatorChange(null);
+
+            if (!canEditCollections) {
+              return;
+            }
+
+            if (requestId) {
+              void onMoveRequest(requestId, {
+                collectionId: folder.collectionId,
+                folderId: folder.id,
+              });
+              return;
+            }
+
+            if (folderId && folderId !== folder.id) {
+              void onMoveFolder(folderId, {
+                collectionId: folder.collectionId,
+                parentFolderId: folder.id,
+              });
+            }
+          }}
+        >
           {folder.folders.map((childFolder) => (
             <SidebarFolderNode
               key={childFolder.id}
@@ -155,16 +324,70 @@ function SidebarFolderNode({
               onCreateFolder={onCreateFolder}
               onDeleteFolder={onDeleteFolder}
               onDeleteRequest={onDeleteRequest}
+              onDuplicateRequest={onDuplicateRequest}
+              onMoveRequest={onMoveRequest}
+              onMoveFolder={onMoveFolder}
+              onRequestDragStart={onRequestDragStart}
+              onFolderDragStart={onFolderDragStart}
+              onRequestDragEnd={onRequestDragEnd}
+              onFolderDragEnd={onFolderDragEnd}
               activeRequestId={activeRequestId}
               canEditCollections={canEditCollections}
+              draggedRequestId={draggedRequestId}
+              draggedFolderId={draggedFolderId}
+              dropIndicator={dropIndicator}
+              onDropIndicatorChange={onDropIndicatorChange}
             />
           ))}
           {folder.requests.map((request) => (
             <div
               className={`sidebar-tree__request-row ${
                 request.id === activeRequestId ? "is-active" : ""
+              } ${request.id === draggedRequestId ? "is-dragging" : ""} ${
+                dropIndicator?.itemType === "request" && dropIndicator.itemId === request.id
+                  ? `is-drop-${dropIndicator.placement}`
+                  : ""
               }`}
+              draggable={canEditCollections}
               key={request.id}
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("application/x-request-id", request.id);
+                event.dataTransfer.setData("text/plain", request.id);
+                onRequestDragStart(request.id);
+              }}
+              onDragEnd={onRequestDragEnd}
+              onDragOver={(event) => {
+                if (!canEditCollections || !draggedRequestId || draggedRequestId === request.id) {
+                  return;
+                }
+                event.preventDefault();
+                onDropIndicatorChange({
+                  itemType: "request",
+                  itemId: request.id,
+                  placement: getRequestDropPlacement(event),
+                });
+              }}
+              onDragLeave={() => {
+                if (dropIndicator?.itemType === "request" && dropIndicator.itemId === request.id) {
+                  onDropIndicatorChange(null);
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const requestId = event.dataTransfer.getData("application/x-request-id");
+                onDropIndicatorChange(null);
+                if (!requestId || !canEditCollections || requestId === request.id) {
+                  return;
+                }
+                void onMoveRequest(
+                  requestId,
+                  { collectionId: folder.collectionId, folderId: folder.id },
+                  request.id,
+                  getRequestDropPlacement(event),
+                );
+              }}
             >
               <button
                 className="sidebar-tree__request"
@@ -174,6 +397,16 @@ function SidebarFolderNode({
                 <RequestIcon className="sidebar-tree__item-icon" />
                 <span className={`badge method-${request.method}`}>{request.method}</span>
                 <span className="sidebar-tree__request-name">{request.name}</span>
+              </button>
+              <button
+                aria-label="Duplicate request"
+                className="icon-button icon-button--tiny sidebar-tree__action"
+                disabled={!canEditCollections}
+                onClick={() => void onDuplicateRequest(request)}
+                title="Duplicate request"
+                type="button"
+              >
+                <CopyIcon />
               </button>
               <button
                 aria-label="Delete request"
@@ -250,6 +483,98 @@ function findFolderById(
   return null;
 }
 
+function findRequestById(
+  collections: CollectionTree[],
+  requestId: string,
+): RequestDefinition | null {
+  const findInFolders = (folders: CollectionTreeFolder[]): RequestDefinition | null => {
+    for (const folder of folders) {
+      const request = folder.requests.find((item) => item.id === requestId);
+      if (request) {
+        return request;
+      }
+
+      const childRequest = findInFolders(folder.folders);
+      if (childRequest) {
+        return childRequest;
+      }
+    }
+
+    return null;
+  };
+
+  for (const collection of collections) {
+    const request = collection.requests.find((item) => item.id === requestId);
+    if (request) {
+      return request;
+    }
+
+    const childRequest = findInFolders(collection.folders);
+    if (childRequest) {
+      return childRequest;
+    }
+  }
+
+  return null;
+}
+
+function findFolderInCollections(
+  collections: CollectionTree[],
+  folderId: string,
+): CollectionTreeFolder | null {
+  for (const collection of collections) {
+    const folder = findFolderById(collection.folders, folderId);
+    if (folder) {
+      return folder;
+    }
+  }
+
+  return null;
+}
+
+function getTargetRequests(
+  collections: CollectionTree[],
+  target: RequestMoveTarget,
+): RequestDefinition[] {
+  const collection = collections.find((item) => item.id === target.collectionId);
+  if (!collection) {
+    return [];
+  }
+
+  if (!target.folderId) {
+    return collection.requests;
+  }
+
+  return findFolderById(collection.folders, target.folderId)?.requests ?? [];
+}
+
+function getTargetFolders(
+  collections: CollectionTree[],
+  target: FolderMoveTarget,
+): CollectionTreeFolder[] {
+  const collection = collections.find((item) => item.id === target.collectionId);
+  if (!collection) {
+    return [];
+  }
+
+  if (!target.parentFolderId) {
+    return collection.folders;
+  }
+
+  return findFolderById(collection.folders, target.parentFolderId)?.folders ?? [];
+}
+
+function isFolderDescendant(folder: CollectionTreeFolder, candidateId: string): boolean {
+  return folder.folders.some(
+    (childFolder) => childFolder.id === candidateId || isFolderDescendant(childFolder, candidateId),
+  );
+}
+
+function getRequestDropPlacement(event: DragEvent<HTMLElement>): RequestDropPlacement {
+  const bounds = event.currentTarget.getBoundingClientRect();
+  return event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+}
+
 function parseRequestPath(rawName: string) {
   const parts = rawName
     .split("/")
@@ -313,6 +638,9 @@ export function CollectionsSidebar() {
   const [expandedCollectionIds, setExpandedCollectionIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [draggedRequestId, setDraggedRequestId] = useState<string | null>(null);
+  const [draggedFolderId, setDraggedFolderId] = useState<string | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
   const canEditCollections = workspacePermissions.canEditCollections(
     activeWorkspace?.currentUserRole ?? null,
   );
@@ -583,6 +911,116 @@ export function CollectionsSidebar() {
     });
   };
 
+  const duplicateRequest = async (request: RequestDefinition) => {
+    if (!canEditCollections) {
+      return;
+    }
+
+    const duplicatedRequest = await api.requests.duplicate(request.id);
+    await fetchCollections();
+    openRequestTab(duplicatedRequest);
+  };
+
+  const moveRequest = async (
+    requestId: string,
+    target: RequestMoveTarget,
+    targetRequestId?: string,
+    placement: RequestDropPlacement = "after",
+  ) => {
+    if (!canEditCollections) {
+      return;
+    }
+
+    const draggedRequest = findRequestById(collections, requestId);
+    if (!draggedRequest) {
+      return;
+    }
+
+    const targetRequests = getTargetRequests(collections, target).filter(
+      (request) => request.id !== requestId,
+    );
+    const targetIndex = targetRequestId
+      ? targetRequests.findIndex((request) => request.id === targetRequestId)
+      : targetRequests.length;
+    const insertIndex =
+      targetIndex === -1
+        ? targetRequests.length
+        : targetIndex + (placement === "after" ? 1 : 0);
+    const nextRequests = [
+      ...targetRequests.slice(0, insertIndex),
+      draggedRequest,
+      ...targetRequests.slice(insertIndex),
+    ];
+
+    await Promise.all(
+      nextRequests.map((request, index) =>
+        api.requests.update(request.id, {
+          collectionId: target.collectionId,
+          folderId: target.folderId,
+          sortOrder: index * 100,
+        }),
+      ),
+    );
+    setDraggedRequestId(null);
+    setDropIndicator(null);
+    await fetchCollections();
+  };
+
+  const moveFolder = async (
+    folderId: string,
+    target: FolderMoveTarget,
+    targetFolderId?: string,
+    placement: RequestDropPlacement = "after",
+  ) => {
+    if (!canEditCollections) {
+      return;
+    }
+
+    const draggedFolder = findFolderInCollections(collections, folderId);
+    if (!draggedFolder) {
+      return;
+    }
+
+    if (
+      target.parentFolderId &&
+      (target.parentFolderId === folderId ||
+        isFolderDescendant(draggedFolder, target.parentFolderId))
+    ) {
+      setDraggedFolderId(null);
+      setDropIndicator(null);
+      return;
+    }
+
+    const targetFolders = getTargetFolders(collections, target).filter(
+      (folder) => folder.id !== folderId,
+    );
+    const targetIndex = targetFolderId
+      ? targetFolders.findIndex((folder) => folder.id === targetFolderId)
+      : targetFolders.length;
+    const insertIndex =
+      targetIndex === -1
+        ? targetFolders.length
+        : targetIndex + (placement === "after" ? 1 : 0);
+    const nextFolders = [
+      ...targetFolders.slice(0, insertIndex),
+      draggedFolder,
+      ...targetFolders.slice(insertIndex),
+    ];
+
+    await Promise.all(
+      nextFolders.map((folder, index) =>
+        api.folders.update(folder.id, {
+          collectionId: target.collectionId,
+          parentFolderId: target.parentFolderId,
+          sortOrder: index * 100,
+        }),
+      ),
+    );
+    setDraggedFolderId(null);
+    setDropIndicator(null);
+    await fetchCollections();
+  };
+
   const createEnvironment = async () => {
     if (!activeWorkspaceId || !workspacePermissions.canUpdateWorkspace(activeWorkspace?.currentUserRole ?? null)) {
       return;
@@ -748,13 +1186,92 @@ export function CollectionsSidebar() {
                     </div>
 
                     {expanded ? (
-                      <div className="sidebar-tree__collection-body">
+                      <div
+                        className={`sidebar-tree__collection-body ${
+                          draggedRequestId || draggedFolderId ? "is-drop-target" : ""
+                        }`}
+                        onDragOver={(event) => {
+                          if (!canEditCollections || (!draggedRequestId && !draggedFolderId)) {
+                            return;
+                          }
+                          event.preventDefault();
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          const requestId = event.dataTransfer.getData("application/x-request-id");
+                          const folderId = event.dataTransfer.getData("application/x-folder-id");
+                          setDropIndicator(null);
+
+                          if (!canEditCollections) {
+                            return;
+                          }
+
+                          if (requestId) {
+                            void moveRequest(requestId, {
+                              collectionId: collection.id,
+                              folderId: null,
+                            });
+                            return;
+                          }
+
+                          if (folderId) {
+                            void moveFolder(folderId, {
+                              collectionId: collection.id,
+                              parentFolderId: null,
+                            });
+                          }
+                        }}
+                      >
                         {collection.requests.map((request) => (
                           <div
                             className={`sidebar-tree__request-row ${
                               request.id === activeRequestId ? "is-active" : ""
+                            } ${request.id === draggedRequestId ? "is-dragging" : ""} ${
+                              dropIndicator?.itemType === "request" && dropIndicator.itemId === request.id
+                                ? `is-drop-${dropIndicator.placement}`
+                                : ""
                             }`}
+                            draggable={canEditCollections}
                             key={request.id}
+                            onDragStart={(event) => {
+                              event.dataTransfer.effectAllowed = "move";
+                              event.dataTransfer.setData("application/x-request-id", request.id);
+                              event.dataTransfer.setData("text/plain", request.id);
+                              setDraggedRequestId(request.id);
+                            }}
+                            onDragEnd={() => setDraggedRequestId(null)}
+                            onDragOver={(event) => {
+                              if (!canEditCollections || !draggedRequestId || draggedRequestId === request.id) {
+                                return;
+                              }
+                              event.preventDefault();
+                              setDropIndicator({
+                                itemType: "request",
+                                itemId: request.id,
+                                placement: getRequestDropPlacement(event),
+                              });
+                            }}
+                            onDragLeave={() => {
+                              if (dropIndicator?.itemType === "request" && dropIndicator.itemId === request.id) {
+                                setDropIndicator(null);
+                              }
+                            }}
+                            onDrop={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              const requestId = event.dataTransfer.getData("application/x-request-id");
+                              setDropIndicator(null);
+                              if (!requestId || !canEditCollections || requestId === request.id) {
+                                return;
+                              }
+                              void moveRequest(
+                                requestId,
+                                { collectionId: collection.id, folderId: null },
+                                request.id,
+                                getRequestDropPlacement(event),
+                              );
+                            }}
                           >
                             <button
                               className="sidebar-tree__request"
@@ -766,6 +1283,16 @@ export function CollectionsSidebar() {
                                 {request.method}
                               </span>
                               <span className="sidebar-tree__request-name">{request.name}</span>
+                            </button>
+                            <button
+                              aria-label="Duplicate request"
+                              className="icon-button icon-button--tiny sidebar-tree__action"
+                              disabled={!canEditCollections}
+                              onClick={() => void duplicateRequest(request)}
+                              title="Duplicate request"
+                              type="button"
+                            >
+                              <CopyIcon />
                             </button>
                             <button
                               aria-label="Delete request"
@@ -791,8 +1318,19 @@ export function CollectionsSidebar() {
                             onCreateFolder={createFolder}
                             onDeleteFolder={deleteFolder}
                             onDeleteRequest={deleteRequest}
+                            onDuplicateRequest={duplicateRequest}
+                            onMoveRequest={moveRequest}
+                            onMoveFolder={moveFolder}
+                            onRequestDragStart={setDraggedRequestId}
+                            onFolderDragStart={setDraggedFolderId}
+                            onRequestDragEnd={() => setDraggedRequestId(null)}
+                            onFolderDragEnd={() => setDraggedFolderId(null)}
                             activeRequestId={activeRequestId}
                             canEditCollections={canEditCollections}
+                            draggedRequestId={draggedRequestId}
+                            draggedFolderId={draggedFolderId}
+                            dropIndicator={dropIndicator}
+                            onDropIndicatorChange={setDropIndicator}
                           />
                         ))}
                       </div>
