@@ -28,7 +28,7 @@ api:
     registry: ""
     repository: postmanclone/api
     tag: "latest"          # defaults to .Chart.AppVersion
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 
   # -- Environment variables for the API container ----------------------------
   env:
@@ -132,7 +132,7 @@ web:
     registry: ""
     repository: postmanclone/web
     tag: "latest"          # defaults to .Chart.AppVersion
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 
   service:
     type: ClusterIP
@@ -193,7 +193,7 @@ web:
     fsGroup: 101
   containerSecurityContext:
     allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true   # with emptyDir volumes mounted at /tmp, /var/cache/nginx, /var/run
+    readOnlyRootFilesystem: true   # nginx needs /var/cache
     capabilities:
       drop: [ALL]
 
