@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DEFAULT_DEPLOY_PATH: postman-clone/helm/postman-clone
+  DEFAULT_DEPLOY_PATH: postman_clone/helm/postman-clone
 
 jobs:
   deploy:
