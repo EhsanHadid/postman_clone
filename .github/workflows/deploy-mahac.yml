@@ -12,7 +12,7 @@ on:
         required: false
         type: string
   workflow_run:
-    workflows: ["Docker Push", "Desktop Release"]
+    workflows: ["Docker Push"]
     types: [completed]
 
 permissions:
