@@ -66,6 +66,7 @@ jobs:
           node ../../node_modules/electron-builder/out/cli/cli.js `
             --win nsis `
             --x64 `
+            --config.extraMetadata.version=${{ steps.version.outputs.version }} `
             --config.directories.output=release-desktop
 
       - name: Rename release files

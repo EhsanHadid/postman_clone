@@ -19,6 +19,7 @@ import { useWorkspaceStore } from "../store/workspaceStore";
 import { isDesktopRenderer } from "../services/runtime";
 
 const brandLogoUrl = `${import.meta.env.BASE_URL}assets/brand/logo.svg`;
+const appVersion = __APP_VERSION__;
 
 export function AppShell() {
   const [workspaceChooserOpen, setWorkspaceChooserOpen] = useState(false);
@@ -163,6 +164,7 @@ export function AppShell() {
       <footer className="statusbar">
         <span>{isDesktopRenderer() ? "Local execution" : "Online execution"}</span>
         <span>{activeEnvironment ? `Env: ${activeEnvironment.name}` : "No environment"}</span>
+        <span>Version {appVersion}</span>
       </footer>
 
       <EnvironmentDrawer />
