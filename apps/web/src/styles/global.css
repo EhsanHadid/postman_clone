@@ -851,7 +851,7 @@ textarea::placeholder {
 
 .sidebar-tree__request-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 2px;
   position: relative;
@@ -933,6 +933,52 @@ textarea::placeholder {
   gap: 2px;
 }
 
+.sidebar-tree__menu {
+  position: relative;
+}
+
+.sidebar-tree__menu summary {
+  list-style: none;
+}
+
+.sidebar-tree__menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar-tree__menu-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  min-width: 140px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+}
+
+.sidebar-tree__menu-item {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+.sidebar-tree__menu-item:hover,
+.sidebar-tree__menu-item:focus-visible {
+  background: var(--surface-muted);
+  outline: none;
+}
+
+.sidebar-tree__menu-item--danger {
+  color: #fca5a5;
+}
+
 .sidebar-tree__header-actions {
   gap: 2px;
   opacity: 0;
@@ -956,6 +1002,7 @@ textarea::placeholder {
 .sidebar-tree__header-actions:focus-within,
 .sidebar-tree__folder:focus-within .sidebar-tree__action,
 .sidebar-tree__request-row:focus-within .sidebar-tree__action,
+.sidebar-tree__menu[open] .sidebar-tree__action,
 .sidebar-tree__collection-header:hover .sidebar-tree__delete-action,
 .sidebar-tree__folder:hover .sidebar-tree__delete-action,
 .sidebar-tree__request-row:hover .sidebar-tree__delete-action,

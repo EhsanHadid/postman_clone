@@ -110,6 +110,14 @@ export const CopyIcon = createIcon(
   </>,
 );
 
+export const MoreVerticalIcon = createIcon(
+  <>
+    <circle cx="8" cy="3.6" r=".55" fill="currentColor" stroke="none" />
+    <circle cx="8" cy="8" r=".55" fill="currentColor" stroke="none" />
+    <circle cx="8" cy="12.4" r=".55" fill="currentColor" stroke="none" />
+  </>,
+);
+
 export const HttpIcon = createIcon(
   <>
     <path d="M8 2.6c2.9 0 5.2 2.3 5.2 5.2S10.9 13 8 13 2.8 10.7 2.8 7.8 5.1 2.6 8 2.6Z" />

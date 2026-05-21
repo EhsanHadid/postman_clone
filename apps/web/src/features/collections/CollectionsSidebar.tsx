@@ -4,6 +4,7 @@ import {
   useState,
   type DragEvent,
   type KeyboardEvent,
+  type MouseEvent,
   type ReactNode,
 } from "react";
 import type {
@@ -16,11 +17,11 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CollectionIcon,
-  CopyIcon,
   CookieIcon,
   EnvironmentIcon,
   FolderIcon,
   HistoryIcon,
+  MoreVerticalIcon,
   PlusIcon,
   RequestIcon,
   SearchIcon,
@@ -45,7 +46,9 @@ interface SidebarTreeNodeProps {
   onToggleFolder: (folderId: string) => void;
   onCreateRequest: (collectionId: string, folderId: string | null) => Promise<void>;
   onCreateFolder: (collectionId: string, parentFolderId: string | null) => Promise<void>;
+  onRenameFolder: (folder: CollectionTreeFolder) => Promise<void>;
   onDeleteFolder: (folder: CollectionTreeFolder) => Promise<void>;
+  onRenameRequest: (request: RequestDefinition) => Promise<void>;
   onDeleteRequest: (request: RequestDefinition) => Promise<void>;
   onDuplicateRequest: (request: RequestDefinition) => Promise<void>;
   onMoveRequest: (
@@ -111,6 +114,44 @@ function SidebarModeButton({ active, hint, icon, onClick }: SidebarModeButtonPro
   );
 }
 
+function closeRowActionMenu(event: MouseEvent<HTMLButtonElement>) {
+  event.stopPropagation();
+  event.currentTarget.closest("details")?.removeAttribute("open");
+}
+
+function RowActionMenu({
+  children,
+  disabled,
+  label,
+  onClick,
+}: {
+  children: ReactNode;
+  disabled: boolean;
+  label: string;
+  onClick?: (event: MouseEvent<HTMLDetailsElement>) => void;
+}) {
+  return (
+    <details className="sidebar-tree__menu" onClick={onClick}>
+      <summary
+        aria-label={label}
+        className="icon-button icon-button--tiny sidebar-tree__action sidebar-tree__menu-trigger"
+        onClick={(event) => {
+          if (disabled) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
+        title={label}
+      >
+        <MoreVerticalIcon />
+      </summary>
+      <div className="sidebar-tree__menu-panel" role="menu">
+        {children}
+      </div>
+    </details>
+  );
+}
+
 function SidebarFolderNode({
   folder,
   expandedFolderIds,
@@ -118,7 +159,9 @@ function SidebarFolderNode({
   onToggleFolder,
   onCreateRequest,
   onCreateFolder,
+  onRenameFolder,
   onDeleteFolder,
+  onRenameRequest,
   onDeleteRequest,
   onDuplicateRequest,
   onMoveRequest,
@@ -244,47 +287,52 @@ function SidebarFolderNode({
         </span>
         <FolderIcon className="sidebar-tree__item-icon" />
         <span className="sidebar-tree__folder-name">{folder.name}</span>
-        <span className="sidebar-tree__actions">
+        <RowActionMenu
+          disabled={!canEditCollections}
+          label={`Folder actions for ${folder.name}`}
+          onClick={(event) => event.stopPropagation()}
+        >
           <button
-            aria-label="Add request"
-            className="icon-button icon-button--tiny sidebar-tree__action"
-            disabled={!canEditCollections}
+            className="sidebar-tree__menu-item"
             onClick={(event) => {
-              event.stopPropagation();
+              closeRowActionMenu(event);
               void onCreateRequest(folder.collectionId, folder.id);
             }}
-            title="Add request"
             type="button"
           >
-            <RequestIcon />
+            Add request
           </button>
           <button
-            aria-label="Create folder"
-            className="icon-button icon-button--tiny sidebar-tree__action"
-            disabled={!canEditCollections}
+            className="sidebar-tree__menu-item"
             onClick={(event) => {
-              event.stopPropagation();
+              closeRowActionMenu(event);
               void onCreateFolder(folder.collectionId, folder.id);
             }}
-            title="Create folder"
             type="button"
           >
-            <FolderIcon />
+            Create folder
           </button>
           <button
-            aria-label="Delete folder"
-            className="icon-button icon-button--tiny sidebar-tree__action sidebar-tree__delete-action"
-            disabled={!canEditCollections}
+            className="sidebar-tree__menu-item"
             onClick={(event) => {
-              event.stopPropagation();
-              void onDeleteFolder(folder);
+              closeRowActionMenu(event);
+              void onRenameFolder(folder);
             }}
-            title="Delete folder"
             type="button"
           >
-            <TrashIcon />
+            Rename
           </button>
-        </span>
+          <button
+            className="sidebar-tree__menu-item sidebar-tree__menu-item--danger"
+            onClick={(event) => {
+              closeRowActionMenu(event);
+              void onDeleteFolder(folder);
+            }}
+            type="button"
+          >
+            Delete
+          </button>
+        </RowActionMenu>
       </div>
 
       {expanded ? (
@@ -336,7 +384,9 @@ function SidebarFolderNode({
               onToggleFolder={onToggleFolder}
               onCreateRequest={onCreateRequest}
               onCreateFolder={onCreateFolder}
+              onRenameFolder={onRenameFolder}
               onDeleteFolder={onDeleteFolder}
+              onRenameRequest={onRenameRequest}
               onDeleteRequest={onDeleteRequest}
               onDuplicateRequest={onDuplicateRequest}
               onMoveRequest={onMoveRequest}
@@ -412,26 +462,41 @@ function SidebarFolderNode({
                 <span className={`badge method-${request.method}`}>{request.method}</span>
                 <span className="sidebar-tree__request-name">{request.name}</span>
               </button>
-              <button
-                aria-label="Duplicate request"
-                className="icon-button icon-button--tiny sidebar-tree__action"
+              <RowActionMenu
                 disabled={!canEditCollections}
-                onClick={() => void onDuplicateRequest(request)}
-                title="Duplicate request"
-                type="button"
+                label={`Request actions for ${request.name}`}
               >
-                <CopyIcon />
-              </button>
-              <button
-                aria-label="Delete request"
-                className="icon-button icon-button--tiny sidebar-tree__action sidebar-tree__delete-action"
-                disabled={!canEditCollections}
-                onClick={() => void onDeleteRequest(request)}
-                title="Delete request"
-                type="button"
-              >
-                <TrashIcon />
-              </button>
+                <button
+                  className="sidebar-tree__menu-item"
+                  onClick={(event) => {
+                    closeRowActionMenu(event);
+                    void onRenameRequest(request);
+                  }}
+                  type="button"
+                >
+                  Rename
+                </button>
+                <button
+                  className="sidebar-tree__menu-item"
+                  onClick={(event) => {
+                    closeRowActionMenu(event);
+                    void onDuplicateRequest(request);
+                  }}
+                  type="button"
+                >
+                  Duplicate
+                </button>
+                <button
+                  className="sidebar-tree__menu-item sidebar-tree__menu-item--danger"
+                  onClick={(event) => {
+                    closeRowActionMenu(event);
+                    void onDeleteRequest(request);
+                  }}
+                  type="button"
+                >
+                  Delete
+                </button>
+              </RowActionMenu>
             </div>
           ))}
         </div>
@@ -651,6 +716,7 @@ export function CollectionsSidebar() {
   const fetchEnvironments = useEnvironmentsStore((state) => state.fetchEnvironments);
   const historyEntries = useHistoryStore((state) => state.entries);
   const openRequestTab = useTabsStore((state) => state.openRequestTab);
+  const markSaved = useTabsStore((state) => state.markSaved);
   const closeTab = useTabsStore((state) => state.closeTab);
   const tabs = useTabsStore((state) => state.tabs);
   const activeTabId = useTabsStore((state) => state.activeTabId);
@@ -881,6 +947,47 @@ export function CollectionsSidebar() {
       submitLabel: "Create Folder",
       onSubmit: async (name) => {
         await api.folders.create({ collectionId, parentFolderId, name });
+        await fetchCollections();
+      },
+    });
+  };
+
+  const renameFolder = async (folder: CollectionTreeFolder) => {
+    if (!canEditCollections) {
+      return;
+    }
+
+    openTextDialog({
+      title: "Rename Folder",
+      description: "Rename this folder without changing its requests.",
+      label: "Folder name",
+      initialValue: folder.name,
+      submitLabel: "Rename Folder",
+      onSubmit: async (name) => {
+        await api.folders.update(folder.id, { name });
+        await fetchCollections();
+      },
+    });
+  };
+
+  const renameRequest = async (request: RequestDefinition) => {
+    if (!canEditCollections) {
+      return;
+    }
+
+    openTextDialog({
+      title: "Rename Request",
+      description: "Rename this saved request without changing its contents.",
+      label: "Request name",
+      initialValue: request.name,
+      submitLabel: "Rename Request",
+      onSubmit: async (name) => {
+        const updatedRequest = await api.requests.update(request.id, { name });
+        tabs
+          .filter((tab) => tab.requestId === request.id && !tab.isDirty)
+          .forEach((tab) => {
+            markSaved(tab.id, updatedRequest);
+          });
         await fetchCollections();
       },
     });
@@ -1327,26 +1434,41 @@ export function CollectionsSidebar() {
                               </span>
                               <span className="sidebar-tree__request-name">{request.name}</span>
                             </button>
-                            <button
-                              aria-label="Duplicate request"
-                              className="icon-button icon-button--tiny sidebar-tree__action"
+                            <RowActionMenu
                               disabled={!canEditCollections}
-                              onClick={() => void duplicateRequest(request)}
-                              title="Duplicate request"
-                              type="button"
+                              label={`Request actions for ${request.name}`}
                             >
-                              <CopyIcon />
-                            </button>
-                            <button
-                              aria-label="Delete request"
-                              className="icon-button icon-button--tiny sidebar-tree__action sidebar-tree__delete-action"
-                              disabled={!canEditCollections}
-                              onClick={() => void deleteRequest(request)}
-                              title="Delete request"
-                              type="button"
-                            >
-                              <TrashIcon />
-                            </button>
+                              <button
+                                className="sidebar-tree__menu-item"
+                                onClick={(event) => {
+                                  closeRowActionMenu(event);
+                                  void renameRequest(request);
+                                }}
+                                type="button"
+                              >
+                                Rename
+                              </button>
+                              <button
+                                className="sidebar-tree__menu-item"
+                                onClick={(event) => {
+                                  closeRowActionMenu(event);
+                                  void duplicateRequest(request);
+                                }}
+                                type="button"
+                              >
+                                Duplicate
+                              </button>
+                              <button
+                                className="sidebar-tree__menu-item sidebar-tree__menu-item--danger"
+                                onClick={(event) => {
+                                  closeRowActionMenu(event);
+                                  void deleteRequest(request);
+                                }}
+                                type="button"
+                              >
+                                Delete
+                              </button>
+                            </RowActionMenu>
                           </div>
                         ))}
 
@@ -1359,7 +1481,9 @@ export function CollectionsSidebar() {
                             onToggleFolder={toggleFolder}
                             onCreateRequest={createRequest}
                             onCreateFolder={createFolder}
+                            onRenameFolder={renameFolder}
                             onDeleteFolder={deleteFolder}
+                            onRenameRequest={renameRequest}
                             onDeleteRequest={deleteRequest}
                             onDuplicateRequest={duplicateRequest}
                             onMoveRequest={moveRequest}
