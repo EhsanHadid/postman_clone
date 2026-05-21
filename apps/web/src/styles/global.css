@@ -900,6 +900,11 @@ textarea::placeholder {
   bottom: -3px;
 }
 
+.sidebar-tree__folder.is-drop-inside {
+  border-color: rgba(255, 108, 55, 0.55);
+  background: var(--accent-soft);
+}
+
 .sidebar-tree__request-row.is-active .sidebar-tree__request {
   border-color: rgba(255, 108, 55, 0.45);
   background: var(--accent-soft);

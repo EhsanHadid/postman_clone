@@ -79,7 +79,7 @@ interface SidebarModeButtonProps {
   onClick: () => void;
 }
 
-type RequestDropPlacement = "before" | "after";
+type RequestDropPlacement = "before" | "after" | "inside";
 
 type RequestMoveTarget = {
   collectionId: string;
@@ -175,6 +175,11 @@ function SidebarFolderNode({
 
           if (draggedRequestId) {
             event.preventDefault();
+            onDropIndicatorChange({
+              itemType: "folder",
+              itemId: folder.id,
+              placement: "inside",
+            });
             return;
           }
 
@@ -183,7 +188,7 @@ function SidebarFolderNode({
             onDropIndicatorChange({
               itemType: "folder",
               itemId: folder.id,
-              placement: getRequestDropPlacement(event),
+              placement: getFolderDropPlacement(event),
             });
           }
         }}
@@ -212,11 +217,20 @@ function SidebarFolderNode({
           }
 
           if (folderId && folderId !== folder.id) {
+            const placement = getFolderDropPlacement(event);
+            if (placement === "inside") {
+              void onMoveFolder(folderId, {
+                collectionId: folder.collectionId,
+                parentFolderId: folder.id,
+              });
+              return;
+            }
+
             void onMoveFolder(
               folderId,
               { collectionId: folder.collectionId, parentFolderId: folder.parentFolderId },
               folder.id,
-              getRequestDropPlacement(event),
+              placement,
             );
           }
         }}
@@ -573,6 +587,23 @@ function isFolderDescendant(folder: CollectionTreeFolder, candidateId: string): 
 function getRequestDropPlacement(event: DragEvent<HTMLElement>): RequestDropPlacement {
   const bounds = event.currentTarget.getBoundingClientRect();
   return event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+}
+
+function getFolderDropPlacement(event: DragEvent<HTMLElement>): RequestDropPlacement {
+  const bounds = event.currentTarget.getBoundingClientRect();
+  const offsetY = event.clientY - bounds.top;
+  const topThird = bounds.height / 3;
+  const bottomThird = bounds.height * 2 / 3;
+
+  if (offsetY < topThird) {
+    return "before";
+  }
+
+  if (offsetY > bottomThird) {
+    return "after";
+  }
+
+  return "inside";
 }
 
 function parseRequestPath(rawName: string) {
@@ -988,6 +1019,18 @@ export function CollectionsSidebar() {
     ) {
       setDraggedFolderId(null);
       setDropIndicator(null);
+      return;
+    }
+
+    if (placement === "inside") {
+      await api.folders.update(folderId, {
+        collectionId: target.collectionId,
+        parentFolderId: target.parentFolderId,
+        sortOrder: getTargetFolders(collections, target).length * 100,
+      });
+      setDraggedFolderId(null);
+      setDropIndicator(null);
+      await fetchCollections();
       return;
     }
 
