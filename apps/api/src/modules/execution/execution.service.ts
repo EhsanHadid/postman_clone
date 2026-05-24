@@ -15,6 +15,7 @@ import {
 import {
   interpolateObject,
   safeJsonParse,
+  stripJsonComments,
 } from "@postman-clone/shared-utils";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -338,6 +339,8 @@ export class ExecutionService {
         mutableRequest.headers["content-type"] = "application/json";
         mutableRequest.body = this.trpcService.createBody(mutableRequest.body || "{}");
       }
+    } else if (request.bodyType === "json") {
+      mutableRequest.body = stripJsonComments(mutableRequest.body || "{}");
     }
 
     const body = await this.buildRequestBody(
@@ -384,7 +387,7 @@ export class ExecutionService {
 
     if (bodyType === "json") {
       headers["content-type"] = headers["content-type"] ?? "application/json";
-      return body || "{}";
+      return stripJsonComments(body || "{}");
     }
 
     if (bodyType === "text") {

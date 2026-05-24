@@ -32,6 +32,7 @@ export function KeyValueTable<T extends TableRow>({
       key: "",
       value: "",
       enabled: true,
+      description: "",
     } as T;
 
     onChange([...rows, baseRow]);
@@ -48,6 +49,7 @@ export function KeyValueTable<T extends TableRow>({
         <span>Key</span>
         {mode === "formData" ? <span>Type</span> : null}
         <span>Value</span>
+        <span>Description</span>
         <span />
       </div>
       {rows.map((row, index) => (
@@ -88,6 +90,13 @@ export function KeyValueTable<T extends TableRow>({
             }
             suggestions={variableSuggestions}
             onChange={(value) => updateRow(index, { value } as T)}
+          />
+          <VariableAwareInput
+            className="input input--dense"
+            value={row.description ?? ""}
+            placeholder="Description"
+            suggestions={variableSuggestions}
+            onChange={(description) => updateRow(index, { description } as T)}
           />
           <button
             className="text-action text-action--quiet"

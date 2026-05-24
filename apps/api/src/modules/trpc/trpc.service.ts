@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { safeJsonParse } from "@postman-clone/shared-utils";
+import { safeJsonParse, stripJsonComments } from "@postman-clone/shared-utils";
 
 @Injectable()
 export class TrpcService {
@@ -14,7 +14,7 @@ export class TrpcService {
   }
 
   createBody(body: string): string {
-    const parsed = safeJsonParse<unknown>(body || "{}", {});
+    const parsed = safeJsonParse<unknown>(stripJsonComments(body || "{}"), {});
     return JSON.stringify(parsed);
   }
 

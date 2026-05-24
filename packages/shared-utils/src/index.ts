@@ -62,6 +62,76 @@ export const safeJsonParse = <T>(
   }
 };
 
+export const stripJsonComments = (value: string): string => {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    const nextCharacter = value[index + 1];
+
+    if (inString) {
+      result += character;
+
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === "\"") {
+        inString = false;
+      }
+
+      continue;
+    }
+
+    if (character === "\"") {
+      inString = true;
+      result += character;
+      continue;
+    }
+
+    if (character === "/" && nextCharacter === "/") {
+      result += "  ";
+      index += 1;
+
+      while (index + 1 < value.length && value[index + 1] !== "\n") {
+        result += " ";
+        index += 1;
+      }
+
+      continue;
+    }
+
+    if (character === "/" && nextCharacter === "*") {
+      result += "  ";
+      index += 1;
+
+      while (index + 1 < value.length) {
+        const commentCharacter = value[index + 1];
+        const afterCommentCharacter = value[index + 2];
+
+        if (commentCharacter === "*" && afterCommentCharacter === "/") {
+          result += "  ";
+          index += 2;
+          break;
+        }
+
+        result += commentCharacter === "\n" || commentCharacter === "\r"
+          ? commentCharacter
+          : " ";
+        index += 1;
+      }
+
+      continue;
+    }
+
+    result += character;
+  }
+
+  return result;
+};
+
 export const createSortOrder = (index: number): number => index * 100;
 
 export const uniqueBy = <T>(

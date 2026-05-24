@@ -633,6 +633,7 @@ export function RequestEditor() {
                     : "POST sends the tRPC input as JSON in the request body."}
                 </div>
                 <CodeEditor
+                  allowJsonComments
                   key={`trpc-body-${variableSuggestionKey}`}
                   height={310}
                   language="json"
@@ -667,6 +668,7 @@ export function RequestEditor() {
             {draft.protocolType !== "trpc" &&
             (draft.bodyType === "json" || draft.bodyType === "text") ? (
               <CodeEditor
+                allowJsonComments={draft.bodyType === "json"}
                 key={`http-body-${draft.bodyType}-${variableSuggestionKey}`}
                 height={310}
                 language={draft.bodyType === "json" ? "json" : "plaintext"}

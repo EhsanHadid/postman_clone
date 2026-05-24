@@ -6,6 +6,7 @@ interface CodeEditorProps {
   language: string;
   height?: number | string;
   readOnly?: boolean;
+  allowJsonComments?: boolean;
   variableSuggestions?: EnvironmentVariableSuggestion[];
   onChange?: (value: string) => void;
 }
@@ -15,6 +16,7 @@ export function CodeEditor({
   language,
   height = 260,
   readOnly = false,
+  allowJsonComments = false,
   variableSuggestions = [],
   onChange,
 }: CodeEditorProps) {
@@ -26,6 +28,13 @@ export function CodeEditor({
         height={height}
         value={value}
         beforeMount={(monaco) => {
+          if (language === "json" && allowJsonComments) {
+            monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+              validate: true,
+              allowComments: true,
+            });
+          }
+
           monaco.languages.registerCompletionItemProvider(language, {
             triggerCharacters: ["{"],
             provideCompletionItems: (model, position) => {

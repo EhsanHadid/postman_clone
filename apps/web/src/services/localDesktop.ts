@@ -15,7 +15,12 @@ import type {
   RequestDefinition,
   RequestBodyType,
 } from "@postman-clone/shared-types";
-import { interpolateObject, safeJsonParse, toEnabledRecord } from "@postman-clone/shared-utils";
+import {
+  interpolateObject,
+  safeJsonParse,
+  stripJsonComments,
+  toEnabledRecord,
+} from "@postman-clone/shared-utils";
 
 type RequestDraft = Partial<RequestDefinition> &
   Pick<RequestDefinition, "protocolType"> & {
@@ -170,7 +175,7 @@ function resolveTrpcUrl(baseUrl: string, procedurePath: string) {
 }
 
 function createTrpcBody(body: string) {
-  return JSON.stringify(safeJsonParse<unknown>(body || "{}", {}));
+  return JSON.stringify(safeJsonParse<unknown>(stripJsonComments(body || "{}"), {}));
 }
 
 function appendInputParam(urlValue: string, body: string) {
@@ -228,6 +233,8 @@ function buildLocalRequestInput(
       headers["content-type"] = headers["content-type"] ?? "application/json";
       body = createTrpcBody(body || "{}");
     }
+  } else if (bodyType === "json") {
+    body = stripJsonComments(body || "{}");
   }
 
   const bodyValue = bodyType === "form-data" || bodyType === "x-www-form-urlencoded"
