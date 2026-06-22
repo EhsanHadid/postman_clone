@@ -19,6 +19,7 @@ app.setAppUserModelId(appUserModelId);
 
 if (process.platform === "linux" && app.isPackaged) {
   app.commandLine.appendSwitch("no-sandbox");
+  app.commandLine.appendSwitch("disable-dev-shm-usage");
 }
 
 function getAppIconFileName() {
