@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { ImportExportControls } from "../features/import-export/ImportExportControls";
 import { CollectionsSidebar } from "../features/collections/CollectionsSidebar";
@@ -8,11 +8,11 @@ import { HistoryDrawer } from "../features/history/HistoryDrawer";
 import { RequestEditor } from "../features/request-builder/RequestEditor";
 import { ResponseViewer } from "../features/response-viewer/ResponseViewer";
 import { RequestTabs } from "../features/tabs/RequestTabs";
+import { DesktopDownloadButton } from "../components/DesktopDownloadButton";
 import { LogoutIcon, SettingsIcon } from "../components/AppIcons";
 import { WorkspaceChooserDialog } from "../features/workspaces/WorkspaceChooserDialog";
 import { WorkspaceSettingsDialog } from "../features/workspaces/WorkspaceSettingsDialog";
 import { useAuthStore } from "../store/authStore";
-import { getDesktopDownloadUrl, useAppConfigStore } from "../store/appConfigStore";
 import { useEnvironmentsStore } from "../store/environmentsStore";
 import { useLayoutStore } from "../store/layoutStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
@@ -26,8 +26,6 @@ export function AppShell() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
-  const desktopDownloadUrl = useAppConfigStore(getDesktopDownloadUrl);
-  const fetchAppConfig = useAppConfigStore((state) => state.fetchAppConfig);
   const environments = useEnvironmentsStore((state) => state.environments);
   const activeEnvironmentId = useEnvironmentsStore((state) => state.activeEnvironmentId);
   const sidebarSize = useLayoutStore((state) => state.sidebarSize);
@@ -41,10 +39,6 @@ export function AppShell() {
   const activeWorkspace =
     workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? null;
   const mustChooseWorkspace = !activeWorkspaceId;
-
-  useEffect(() => {
-    void fetchAppConfig();
-  }, [fetchAppConfig]);
 
   return (
     <div className="workspace-shell">
@@ -62,16 +56,10 @@ export function AppShell() {
         </div>
 
         <div className="app-header__actions">
-          {!isDesktopRenderer() && desktopDownloadUrl ? (
-            <a
-              className="chrome-button app-header__download"
-              href={desktopDownloadUrl}
-              rel="noreferrer"
-              target="_blank"
-            >
-              Download Desktop
-            </a>
-          ) : null}
+          <DesktopDownloadButton
+            className="chrome-button app-header__download"
+            label="Download Desktop"
+          />
 
           <div className="active-workspace-chip">
             <span className="user-chip__label">Workspace</span>

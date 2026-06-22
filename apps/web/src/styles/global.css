@@ -1792,6 +1792,46 @@ textarea::placeholder {
   padding: 12px;
 }
 
+.desktop-download-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.desktop-download-option {
+  display: grid;
+  gap: 8px;
+  min-height: 88px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.desktop-download-option:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.desktop-download-option span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.desktop-download-option strong {
+  font-size: 18px;
+}
+
+.desktop-download-option--disabled {
+  opacity: 0.54;
+}
+
+.desktop-download-option--disabled:hover {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
 .import-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2199,6 +2239,7 @@ textarea::placeholder {
     grid-template-columns: 1fr;
   }
 
+  .desktop-download-grid,
   .dialog__form-grid {
     grid-template-columns: 1fr;
   }
