@@ -1,4 +1,6 @@
-FROM node:22-alpine AS builder
+ARG NODE_IMAGE=public.ecr.aws/docker/library/node:22-alpine
+
+FROM ${NODE_IMAGE} AS builder
 
 WORKDIR /app
 RUN corepack enable
@@ -16,7 +18,7 @@ COPY packages/shared-utils packages/shared-utils
 
 RUN yarn build:packages && yarn workspace @postman-clone/api build
 
-FROM node:22-alpine AS runner
+FROM ${NODE_IMAGE} AS runner
 
 WORKDIR /app
 RUN corepack enable
