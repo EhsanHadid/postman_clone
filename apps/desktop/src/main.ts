@@ -13,13 +13,18 @@ let historyStore: LocalHistoryStore;
 const requestExecutor = new LocalRequestExecutor();
 const appUserModelId = "com.postmanclone.desktop";
 const appName = "Postman Clone";
+const isPackagedLinux = process.platform === "linux" && app.isPackaged;
 
 app.setName(appName);
 app.setAppUserModelId(appUserModelId);
 
-if (process.platform === "linux" && app.isPackaged) {
+if (isPackagedLinux) {
   app.commandLine.appendSwitch("no-sandbox");
+  app.commandLine.appendSwitch("disable-setuid-sandbox");
+  app.commandLine.appendSwitch("disable-seccomp-filter-sandbox");
   app.commandLine.appendSwitch("disable-dev-shm-usage");
+  app.commandLine.appendSwitch("disable-gpu");
+  app.disableHardwareAcceleration();
 }
 
 function getAppIconFileName() {
@@ -58,7 +63,7 @@ async function createWindow() {
       preload: join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      sandbox: !isPackagedLinux,
     },
   });
 

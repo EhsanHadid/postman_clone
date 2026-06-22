@@ -1,6 +1,6 @@
 {
   "name": "postman-clone",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "private": true,
   "packageManager": "yarn@1.22.22",
   "workspaces": [
