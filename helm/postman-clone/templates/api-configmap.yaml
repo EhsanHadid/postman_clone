@@ -20,6 +20,7 @@ data:
   SESSION_COOKIE_NAME: {{ .Values.api.env.SESSION_COOKIE_NAME | quote }}
   REQUEST_BODY_LIMIT: {{ .Values.api.env.REQUEST_BODY_LIMIT | quote }}
   DESKTOP_APP_DOWNLOAD_URL: {{ .Values.api.env.DESKTOP_APP_DOWNLOAD_URL | quote }}
+  DESKTOP_APP_DOWNLOAD_URL_LINUX: {{ .Values.api.env.DESKTOP_APP_DOWNLOAD_URL_LINUX | default "" | quote }}
   {{- if .Values.api.env.DOCKER_LOCALHOST_ALIAS }}
   DOCKER_LOCALHOST_ALIAS: {{ .Values.api.env.DOCKER_LOCALHOST_ALIAS | quote }}
   {{- end }}

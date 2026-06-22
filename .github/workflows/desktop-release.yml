@@ -114,3 +114,99 @@ jobs:
           files: ${{ steps.files.outputs.artifact_dir }}/*
           fail_on_unmatched_files: true
           generate_release_notes: true
+
+  build-linux:
+    name: Build Linux Desktop
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Read package version
+        id: version
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "version_tag=v-$version" >> "$GITHUB_OUTPUT"
+
+      - name: Validate release tag version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          expected_tag="${{ steps.version.outputs.version_tag }}"
+          actual_tag="${{ github.ref_name }}"
+          if [ "$actual_tag" != "$expected_tag" ]; then
+            echo "Release tag $actual_tag does not match package.json version $expected_tag" >&2
+            exit 1
+          fi
+
+      - name: Build shared packages
+        run: yarn build:packages
+
+      - name: Build web renderer
+        run: yarn workspace @postman-clone/web build
+
+      - name: Build desktop main process
+        run: yarn workspace @postman-clone/desktop build
+
+      - name: Copy renderer into desktop app
+        run: yarn workspace @postman-clone/desktop copy-renderer
+
+      - name: Package Linux installer
+        working-directory: apps/desktop
+        run: |
+          export CSC_IDENTITY_AUTO_DISCOVERY=false
+          node ../../node_modules/electron-builder/out/cli/cli.js \
+            --linux deb \
+            --x64 \
+            --config.extraMetadata.version=${{ steps.version.outputs.version }} \
+            --config.directories.output=release-desktop
+
+      - name: Rename release files
+        id: files
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          release_dir="apps/desktop/release-desktop"
+          artifact_dir="desktop-artifacts"
+          mkdir -p "$artifact_dir"
+
+          installer="$(find "$release_dir" -maxdepth 1 -type f -name '*.deb' | head -n 1)"
+          if [ -z "$installer" ]; then
+            echo "No Linux .deb package was produced in $release_dir" >&2
+            exit 1
+          fi
+
+          installer_name="Postman-Clone-Desktop-v$version-Linux-x64.deb"
+          cp "$installer" "$artifact_dir/$installer_name"
+
+          echo "installer_name=$installer_name" >> "$GITHUB_OUTPUT"
+          echo "artifact_dir=$artifact_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: postman-clone-desktop-v${{ steps.version.outputs.version }}-linux-x64
+          path: ${{ steps.files.outputs.artifact_dir }}/*
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Postman Clone Desktop ${{ github.ref_name }}
+          files: ${{ steps.files.outputs.artifact_dir }}/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true

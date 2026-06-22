@@ -1,13 +1,13 @@
 import { useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { AuthForm } from "../features/auth/AuthForm";
-import { useAppConfigStore } from "../store/appConfigStore";
+import { getDesktopDownloadUrl, useAppConfigStore } from "../store/appConfigStore";
 import { useAuthStore } from "../store/authStore";
 import { isDesktopRenderer } from "../services/runtime";
 
 export function LoginPage() {
   const user = useAuthStore((state) => state.user);
-  const desktopDownloadUrl = useAppConfigStore((state) => state.desktopDownloadUrl);
+  const desktopDownloadUrl = useAppConfigStore(getDesktopDownloadUrl);
   const fetchAppConfig = useAppConfigStore((state) => state.fetchAppConfig);
 
   useEffect(() => {

@@ -113,15 +113,28 @@ jobs:
           if [ -n "${INPUT_DESKTOP_DOWNLOAD_URL}" ]; then
             desktop_download_url="${INPUT_DESKTOP_DOWNLOAD_URL}"
           else
-            desktop_download_url="$(
+            release_assets="$(
               curl -fsSL \
                 -H "Accept: application/vnd.github+json" \
                 -H "Authorization: Bearer ${GH_TOKEN}" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
-                "${release_url}" |
+                "${release_url}"
+            )"
+
+            desktop_download_url="$(
+              printf '%s' "${release_assets}" |
               jq -r '
                 .assets
                 | map(select(.name | test("(?i)(windows|win).*x64.*\\.exe$|\\.exe$")))
+                | .[0].browser_download_url // empty
+              '
+            )"
+
+            desktop_download_url_linux="$(
+              printf '%s' "${release_assets}" |
+              jq -r '
+                .assets
+                | map(select(.name | test("(?i)linux.*x64.*\\.deb$|\\.deb$")))
                 | .[0].browser_download_url // empty
               '
             )"
@@ -132,7 +145,12 @@ jobs:
             exit 1
           fi
 
+          if [ -z "${desktop_download_url_linux:-}" ]; then
+            echo "No Linux .deb asset was found for ${release_url}; Linux download will stay unset."
+          fi
+
           echo "desktop_download_url=${desktop_download_url}" >> "${GITHUB_OUTPUT}"
+          echo "desktop_download_url_linux=${desktop_download_url_linux:-}" >> "${GITHUB_OUTPUT}"
 
       - name: Configure SSH
         env:
@@ -165,6 +183,7 @@ jobs:
           DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH || env.DEFAULT_DEPLOY_PATH }}
           DESKTOP_APP_DOWNLOAD_URL: ${{ steps.desktop.outputs.desktop_download_url }}
+          DESKTOP_APP_DOWNLOAD_URL_LINUX: ${{ steps.desktop.outputs.desktop_download_url_linux }}
           IMAGE_TAG: ${{ steps.image.outputs.image_tag }}
           DEPLOY_RUN_ID: ${{ github.run_id }}
         run: |
@@ -176,7 +195,7 @@ jobs:
           fi
 
           ssh -i ~/.ssh/deploy_key -p "${DEPLOY_SSH_PORT}" "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
-            "DEPLOY_PATH='${DEPLOY_PATH}' DESKTOP_APP_DOWNLOAD_URL='${DESKTOP_APP_DOWNLOAD_URL}' IMAGE_TAG='${IMAGE_TAG}' DEPLOY_RUN_ID='${DEPLOY_RUN_ID}' bash -s" <<'EOF'
+            "DEPLOY_PATH='${DEPLOY_PATH}' DESKTOP_APP_DOWNLOAD_URL='${DESKTOP_APP_DOWNLOAD_URL}' DESKTOP_APP_DOWNLOAD_URL_LINUX='${DESKTOP_APP_DOWNLOAD_URL_LINUX}' IMAGE_TAG='${IMAGE_TAG}' DEPLOY_RUN_ID='${DEPLOY_RUN_ID}' bash -s" <<'EOF'
           set -euo pipefail
 
           export KUBECONFIG=~/.kube/config
@@ -188,6 +207,7 @@ jobs:
             -n postman-clone
             --create-namespace
             --set-string "api.env.DESKTOP_APP_DOWNLOAD_URL=${DESKTOP_APP_DOWNLOAD_URL}"
+            --set-string "api.env.DESKTOP_APP_DOWNLOAD_URL_LINUX=${DESKTOP_APP_DOWNLOAD_URL_LINUX}"
             --set-string "api.podAnnotations.deploy-run-id=${DEPLOY_RUN_ID}"
             --set-string "web.podAnnotations.deploy-run-id=${DEPLOY_RUN_ID}"
           )

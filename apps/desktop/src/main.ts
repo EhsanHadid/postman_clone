@@ -17,12 +17,18 @@ const appName = "Postman Clone";
 app.setName(appName);
 app.setAppUserModelId(appUserModelId);
 
+function getAppIconFileName() {
+  return process.platform === "linux" ? "icon-linux.png" : "icon.ico";
+}
+
 function getAppIconPath() {
+  const iconFileName = getAppIconFileName();
+
   if (app.isPackaged) {
-    return join(app.getAppPath(), "assets/icon.ico");
+    return join(app.getAppPath(), "assets", iconFileName);
   }
 
-  return join(__dirname, "../assets/icon.ico");
+  return join(__dirname, "../assets", iconFileName);
 }
 
 function getRendererUrl() {

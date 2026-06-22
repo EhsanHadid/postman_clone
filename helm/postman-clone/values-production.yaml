@@ -26,6 +26,7 @@ api:
     DB_SYNCHRONIZE: "false"
     REQUEST_BODY_LIMIT: "50mb"
     DESKTOP_APP_DOWNLOAD_URL: ""
+    DESKTOP_APP_DOWNLOAD_URL_LINUX: ""
 
   secrets:
     # Recommended: reference a pre-existing K8s Secret managed by

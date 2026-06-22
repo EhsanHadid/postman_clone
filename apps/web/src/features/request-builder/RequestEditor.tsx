@@ -19,7 +19,7 @@ import { api } from "../../services/api";
 import { getEnvironmentVariableSuggestions } from "../../services/environmentVariables";
 import { localDesktop } from "../../services/localDesktop";
 import { isDesktopRenderer, isPrivateNetworkUrl } from "../../services/runtime";
-import { useAppConfigStore } from "../../store/appConfigStore";
+import { getDesktopDownloadUrl, useAppConfigStore } from "../../store/appConfigStore";
 import { useCollectionsStore } from "../../store/collectionsStore";
 import { useDialogStore } from "../../store/dialogStore";
 import { useEnvironmentsStore } from "../../store/environmentsStore";
@@ -362,7 +362,7 @@ export function RequestEditor() {
 
     if (!isDesktopRenderer() && isPrivateNetworkUrl(draft.url)) {
       await fetchAppConfig();
-      const downloadUrl = useAppConfigStore.getState().desktopDownloadUrl;
+      const downloadUrl = getDesktopDownloadUrl(useAppConfigStore.getState());
       openNoticeDialog({
         title: "Desktop app required",
         description:
