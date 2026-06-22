@@ -57,6 +57,7 @@
       "description": "Desktop API client for executing localhost and private-network requests."
     },
     "deb": {
+      "artifactName": "postman-clone-${version}-${arch}.${ext}",
       "packageName": "postman-clone"
     },
     "nsis": {
