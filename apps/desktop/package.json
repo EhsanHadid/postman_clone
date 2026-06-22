@@ -3,6 +3,7 @@
   "version": "1.0.2",
   "description": "Postman Clone desktop API client",
   "author": "Postman Clone",
+  "homepage": "https://github.com/EhsanHadid/postman_clone",
   "private": true,
   "main": "dist/main.js",
   "scripts": {
@@ -54,6 +55,9 @@
       "maintainer": "Postman Clone <support@postman.mahac.af>",
       "synopsis": "Postman Clone desktop API client",
       "description": "Desktop API client for executing localhost and private-network requests."
+    },
+    "deb": {
+      "packageName": "postman-clone"
     },
     "nsis": {
       "oneClick": false,
