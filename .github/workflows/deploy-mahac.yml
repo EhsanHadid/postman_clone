@@ -146,7 +146,13 @@ jobs:
           fi
 
           if [ -z "${desktop_download_url_linux:-}" ]; then
-            echo "No Linux .deb asset was found for ${release_url}; Linux download will stay unset."
+            if [ "${WORKFLOW_NAME}" = "Desktop Release" ] && [[ "${WORKFLOW_HEAD_BRANCH}" == v-* ]]; then
+              version="${WORKFLOW_HEAD_BRANCH#v-}"
+              desktop_download_url_linux="https://github.com/${REPOSITORY}/releases/download/${WORKFLOW_HEAD_BRANCH}/Postman-Clone-Desktop-v${version}-Linux-x64.deb"
+              echo "No Linux .deb asset was found for ${release_url}; using expected release URL ${desktop_download_url_linux}."
+            else
+              echo "No Linux .deb asset was found for ${release_url}; Linux download will stay unset."
+            fi
           fi
 
           echo "desktop_download_url=${desktop_download_url}" >> "${GITHUB_OUTPUT}"

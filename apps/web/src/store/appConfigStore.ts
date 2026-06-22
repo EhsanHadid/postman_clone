@@ -42,6 +42,15 @@ export function getDesktopDownloadUrl(state: AppConfigState): string | null {
   return platformUrl || state.desktopDownloadUrl;
 }
 
+function deriveLinuxUrl(windowsUrl: string | null): string | null {
+  if (!windowsUrl) {
+    return null;
+  }
+
+  const linuxUrl = windowsUrl.replace(/Windows-x64\.exe$/i, "Linux-x64.deb");
+  return linuxUrl === windowsUrl ? null : linuxUrl;
+}
+
 export const useAppConfigStore = create<AppConfigState>((set, get) => ({
   desktopDownloadUrl: null,
   desktopDownloadUrls: emptyDownloadUrls,
@@ -60,7 +69,7 @@ export const useAppConfigStore = create<AppConfigState>((set, get) => ({
         desktopDownloadUrl,
         desktopDownloadUrls: {
           windows: urls?.windows?.trim() || desktopDownloadUrl,
-          linux: urls?.linux?.trim() || null,
+          linux: urls?.linux?.trim() || deriveLinuxUrl(desktopDownloadUrl),
           macos: urls?.macos?.trim() || null,
         },
         initialized: true,

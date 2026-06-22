@@ -17,6 +17,10 @@ const appName = "Postman Clone";
 app.setName(appName);
 app.setAppUserModelId(appUserModelId);
 
+if (process.platform === "linux" && app.isPackaged) {
+  app.commandLine.appendSwitch("no-sandbox");
+}
+
 function getAppIconFileName() {
   return process.platform === "linux" ? "icon-linux.png" : "icon.ico";
 }

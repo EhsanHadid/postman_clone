@@ -16,14 +16,26 @@ export class AppConfigService {
     return this.configService.get<string>(key)?.trim() || null;
   }
 
+  private deriveLinuxUrl(windowsUrl: string | null): string | null {
+    if (!windowsUrl) {
+      return null;
+    }
+
+    const linuxUrl = windowsUrl.replace(/Windows-x64\.exe$/i, "Linux-x64.deb");
+    return linuxUrl === windowsUrl ? null : linuxUrl;
+  }
+
   getPublicConfig(): PublicAppConfig {
     const desktopDownloadUrl = this.readUrl("DESKTOP_APP_DOWNLOAD_URL");
+    const linuxDownloadUrl =
+      this.readUrl("DESKTOP_APP_DOWNLOAD_URL_LINUX") ??
+      this.deriveLinuxUrl(desktopDownloadUrl);
 
     return {
       desktopDownloadUrl,
       desktopDownloadUrls: {
         windows: desktopDownloadUrl,
-        linux: this.readUrl("DESKTOP_APP_DOWNLOAD_URL_LINUX"),
+        linux: linuxDownloadUrl,
         macos: this.readUrl("DESKTOP_APP_DOWNLOAD_URL_MACOS"),
       },
     };
