@@ -24,7 +24,7 @@
   },
   "build": {
     "appId": "com.postmanclone.desktop",
-    "productName": "Postman Clone",
+    "productName": "PostmanClone",
     "afterPack": "scripts/after-pack.cjs",
     "files": [
       "dist/**/*",
@@ -52,6 +52,10 @@
         "deb"
       ],
       "category": "Development",
+      "desktop": {
+        "Name": "Postman Clone",
+        "StartupWMClass": "Postman Clone"
+      },
       "maintainer": "Postman Clone <support@postman.mahac.af>",
       "synopsis": "Postman Clone desktop API client",
       "description": "Desktop API client for executing localhost and private-network requests."
