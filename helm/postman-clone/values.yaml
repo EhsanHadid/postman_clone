@@ -41,6 +41,7 @@ api:
     REQUEST_BODY_LIMIT: "50mb"
     DOCKER_LOCALHOST_ALIAS: ""
     DESKTOP_APP_DOWNLOAD_URL: ""
+    DESKTOP_APP_DOWNLOAD_URL_LINUX: ""
 
   # -- Sensitive values — reference a Secret or set directly ------------------
   #    When existingSecret is set, DB_USER / DB_PASSWORD keys are read from it.

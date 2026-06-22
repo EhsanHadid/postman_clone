@@ -114,6 +114,7 @@ SESSION_COOKIE_NAME=postman_clone_session
 REQUEST_BODY_LIMIT=50mb
 DB_SYNCHRONIZE=false
 DESKTOP_APP_DOWNLOAD_URL=
+DESKTOP_APP_DOWNLOAD_URL_LINUX=
 ```
 
 Important production values:
@@ -122,7 +123,8 @@ Important production values:
 - `DB_*`: MySQL connection settings
 - `DB_SYNCHRONIZE`: keep `false` in production
 - `REQUEST_BODY_LIMIT`: maximum JSON/form request size accepted by the API, useful for large collection imports and backup restores.
-- `DESKTOP_APP_DOWNLOAD_URL`: public URL for the latest desktop installer. The web app fetches this through `/api/app-config`.
+- `DESKTOP_APP_DOWNLOAD_URL`: public URL for the latest Windows desktop installer (`.exe`). The web app fetches this through `/api/app-config`.
+- `DESKTOP_APP_DOWNLOAD_URL_LINUX`: public URL for the latest Linux desktop installer (`.deb`). The web app serves this to visitors detected as Linux; it falls back to the Windows URL when unset.
 - `DOCKER_LOCALHOST_ALIAS`: set to `host.docker.internal` when the API runs in Docker and should map localhost requests to the host machine.
 
 ## Docker

@@ -12,7 +12,7 @@ import { LogoutIcon, SettingsIcon } from "../components/AppIcons";
 import { WorkspaceChooserDialog } from "../features/workspaces/WorkspaceChooserDialog";
 import { WorkspaceSettingsDialog } from "../features/workspaces/WorkspaceSettingsDialog";
 import { useAuthStore } from "../store/authStore";
-import { useAppConfigStore } from "../store/appConfigStore";
+import { getDesktopDownloadUrl, useAppConfigStore } from "../store/appConfigStore";
 import { useEnvironmentsStore } from "../store/environmentsStore";
 import { useLayoutStore } from "../store/layoutStore";
 import { useWorkspaceStore } from "../store/workspaceStore";
@@ -26,7 +26,7 @@ export function AppShell() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
-  const desktopDownloadUrl = useAppConfigStore((state) => state.desktopDownloadUrl);
+  const desktopDownloadUrl = useAppConfigStore(getDesktopDownloadUrl);
   const fetchAppConfig = useAppConfigStore((state) => state.fetchAppConfig);
   const environments = useEnvironmentsStore((state) => state.environments);
   const activeEnvironmentId = useEnvironmentsStore((state) => state.activeEnvironmentId);

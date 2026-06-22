@@ -51,8 +51,11 @@ type AuthResponse = {
   sessionToken?: string;
 };
 
+export type DesktopPlatform = "windows" | "linux" | "macos";
+
 export type PublicAppConfig = {
   desktopDownloadUrl: string | null;
+  desktopDownloadUrls?: Record<DesktopPlatform, string | null>;
 };
 
 async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {

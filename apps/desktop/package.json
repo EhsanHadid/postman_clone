@@ -44,6 +44,17 @@
       ],
       "signAndEditExecutable": false
     },
+    "linux": {
+      "executableName": "postman-clone",
+      "icon": "assets/icon-linux.png",
+      "target": [
+        "deb"
+      ],
+      "category": "Development",
+      "maintainer": "Postman Clone <support@postman.mahac.af>",
+      "synopsis": "Postman Clone desktop API client",
+      "description": "Desktop API client for executing localhost and private-network requests."
+    },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
