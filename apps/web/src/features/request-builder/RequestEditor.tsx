@@ -11,12 +11,14 @@ import {
   LoaderIcon,
   SaveIcon,
   TrpcIcon,
+  UploadIcon,
 } from "../../components/AppIcons";
 import { CodeEditor } from "../../components/CodeEditor";
 import { KeyValueTable } from "../../components/KeyValueTable";
 import { VariableAwareInput } from "../../components/VariableAwareInput";
 import { api } from "../../services/api";
 import { getEnvironmentVariableSuggestions } from "../../services/environmentVariables";
+import { readFileAsDataUrl } from "../../services/files";
 import { localDesktop } from "../../services/localDesktop";
 import { isDesktopRenderer, isPrivateNetworkUrl } from "../../services/runtime";
 import { getDesktopDownloadUrl, useAppConfigStore } from "../../store/appConfigStore";
@@ -221,6 +223,10 @@ function getRequestPath(collections: CollectionTree[], draft: RequestDefinition)
   ];
 }
 
+function getBinaryFile(draft: RequestDefinition) {
+  return draft.formData.find((item) => item.valueType === "file" && item.value === draft.body);
+}
+
 export function RequestEditor() {
   const tabs = useTabsStore((state) => state.tabs);
   const activeTabId = useTabsStore((state) => state.activeTabId);
@@ -270,6 +276,28 @@ export function RequestEditor() {
     }
 
     updateActiveDraft({ protocolType });
+  };
+
+  const selectBinaryFile = async (file: File | undefined) => {
+    if (!draft || !file) {
+      return;
+    }
+
+    const value = await readFileAsDataUrl(file);
+    updateActiveDraft({
+      body: value,
+      formData: [
+        {
+          id: crypto.randomUUID(),
+          key: "file",
+          value,
+          enabled: true,
+          valueType: "file",
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+        },
+      ],
+    });
   };
 
   const persistRequest = useCallback(async (location?: {
@@ -658,6 +686,7 @@ export function RequestEditor() {
                     <option value="none">No Body</option>
                     <option value="json">JSON</option>
                     <option value="text">Raw Text</option>
+                    <option value="binary">Binary</option>
                     <option value="form-urlencoded">x-www-form-urlencoded</option>
                     <option value="multipart-form-data">multipart/form-data</option>
                   </select>
@@ -676,6 +705,28 @@ export function RequestEditor() {
                 value={draft.body}
                 onChange={(body) => updateActiveDraft({ body })}
               />
+            ) : null}
+
+            {draft.protocolType !== "trpc" && draft.bodyType === "binary" ? (
+              <div className="binary-body-picker">
+                <div className="file-picker file-picker--binary">
+                  <input
+                    className="file-picker__input"
+                    type="file"
+                    onChange={(event) => {
+                      void selectBinaryFile(event.target.files?.[0]);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  <button className="file-picker__button" type="button">
+                    <UploadIcon />
+                    <span>{getBinaryFile(draft)?.fileName ? "Replace file" : "Select file"}</span>
+                  </button>
+                  <span className="file-picker__name">
+                    {getBinaryFile(draft)?.fileName ?? "No file selected"}
+                  </span>
+                </div>
+              </div>
             ) : null}
 
             {draft.protocolType !== "trpc" &&

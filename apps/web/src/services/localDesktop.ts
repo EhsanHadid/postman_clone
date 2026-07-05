@@ -193,11 +193,16 @@ function toBodyType(bodyType: RequestBodyType | undefined): LocalRequestBodyType
     return "form-data";
   }
 
-  if (bodyType === "json" || bodyType === "text") {
+  if (bodyType === "json" || bodyType === "text" || bodyType === "binary") {
     return bodyType;
   }
 
   return "none";
+}
+
+function readDataUrlMimeType(value: string): string | undefined {
+  const match = /^data:([^;,]+)[;,]/.exec(value);
+  return match?.[1];
 }
 
 function buildLocalRequestInput(
@@ -235,6 +240,12 @@ function buildLocalRequestInput(
     }
   } else if (bodyType === "json") {
     body = stripJsonComments(body || "{}");
+  } else if (bodyType === "binary") {
+    headers["content-type"] =
+      headers["content-type"] ??
+      request.formData?.find((item) => item.valueType === "file" && item.value === body)?.mimeType ??
+      readDataUrlMimeType(body) ??
+      "application/octet-stream";
   }
 
   const bodyValue = bodyType === "form-data" || bodyType === "x-www-form-urlencoded"

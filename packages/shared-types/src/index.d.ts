@@ -1,6 +1,6 @@
 export type ProtocolType = "http" | "trpc" | "grpc" | "rpc";
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-export type RequestBodyType = "none" | "json" | "text" | "form-urlencoded" | "multipart-form-data";
+export type RequestBodyType = "none" | "json" | "text" | "binary" | "form-urlencoded" | "multipart-form-data";
 export type AuthType = "inherit" | "none" | "basic" | "bearer";
 export type EditorTabKey = "params" | "headers" | "body" | "auth" | "cookies" | "scripts";
 export interface UserProfile {

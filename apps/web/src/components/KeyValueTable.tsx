@@ -1,5 +1,7 @@
 import type { KeyValueItem, MultipartFormValue } from "@postman-clone/shared-types";
 import type { EnvironmentVariableSuggestion } from "../services/environmentVariables";
+import { readFileAsDataUrl } from "../services/files";
+import { UploadIcon } from "./AppIcons";
 import { VariableAwareInput } from "./VariableAwareInput";
 
 type TableRow = KeyValueItem | MultipartFormValue;
@@ -42,6 +44,20 @@ export function KeyValueTable<T extends TableRow>({
     onChange(rows.filter((_, rowIndex) => rowIndex !== index));
   };
 
+  const selectFile = async (index: number, file: File | undefined) => {
+    if (!file) {
+      return;
+    }
+
+    const value = await readFileAsDataUrl(file);
+    updateRow(index, {
+      value,
+      valueType: "file",
+      fileName: file.name,
+      mimeType: file.type || "application/octet-stream",
+    } as unknown as Partial<T>);
+  };
+
   return (
     <div className={`kv-table ${mode === "formData" ? "kv-table--formdata" : "kv-table--standard"}`}>
       <div className="kv-table__header">
@@ -73,24 +89,45 @@ export function KeyValueTable<T extends TableRow>({
               className="select select--compact"
               value={(row as MultipartFormValue).valueType ?? "text"}
               onChange={(event) =>
-                updateRow(index, { valueType: event.target.value as "text" | "file" } as T)
+                updateRow(index, {
+                  valueType: event.target.value as "text" | "file",
+                  ...(event.target.value === "text"
+                    ? { fileName: undefined, mimeType: undefined }
+                    : {}),
+                } as unknown as Partial<T>)
               }
             >
               <option value="text">Text</option>
-              <option value="file">File (Base64)</option>
+              <option value="file">File</option>
             </select>
           ) : null}
-          <VariableAwareInput
-            className="input input--dense"
-            value={row.value}
-            placeholder={
-              mode === "formData" && (row as MultipartFormValue).valueType === "file"
-                ? "Paste base64 or data URL"
-                : "Value"
-            }
-            suggestions={variableSuggestions}
-            onChange={(value) => updateRow(index, { value } as T)}
-          />
+          {mode === "formData" && (row as MultipartFormValue).valueType === "file" ? (
+            <div className="file-picker">
+              <input
+                className="file-picker__input"
+                type="file"
+                onChange={(event) => {
+                  void selectFile(index, event.target.files?.[0]);
+                  event.currentTarget.value = "";
+                }}
+              />
+              <button className="file-picker__button" type="button">
+                <UploadIcon />
+                <span>{(row as MultipartFormValue).fileName ? "Replace file" : "Select file"}</span>
+              </button>
+              <span className="file-picker__name">
+                {(row as MultipartFormValue).fileName ?? "No file selected"}
+              </span>
+            </div>
+          ) : (
+            <VariableAwareInput
+              className="input input--dense"
+              value={row.value}
+              placeholder="Value"
+              suggestions={variableSuggestions}
+              onChange={(value) => updateRow(index, { value } as T)}
+            />
+          )}
           <VariableAwareInput
             className="input input--dense"
             value={row.description ?? ""}

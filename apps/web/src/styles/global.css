@@ -1629,6 +1629,62 @@ textarea::placeholder {
   justify-content: center;
 }
 
+.file-picker {
+  position: relative;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.file-picker__input {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file-picker__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.file-picker__input:focus-visible + .file-picker__button,
+.file-picker:hover .file-picker__button {
+  border-color: rgba(255, 108, 55, 0.72);
+}
+
+.file-picker__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-soft);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.binary-body-picker {
+  display: grid;
+  align-items: center;
+  min-height: 72px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel-bg-alt);
+}
+
+.file-picker--binary {
+  max-width: 520px;
+}
+
 .workspace-empty {
   display: grid;
   place-items: center;

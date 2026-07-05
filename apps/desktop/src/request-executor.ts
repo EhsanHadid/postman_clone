@@ -147,8 +147,16 @@ export class LocalRequestExecutor {
         : JSON.stringify(input.body?.value ?? {});
     }
 
-    if (input.body?.type === "text" || input.body?.type === "binary") {
+    if (input.body?.type === "text") {
       return String(input.body.value ?? "");
+    }
+
+    if (input.body?.type === "binary") {
+      const value = String(input.body.value ?? "");
+      const fileBuffer = this.toBase64Buffer(value);
+      return new Blob([this.toArrayBuffer(fileBuffer)], {
+        type: this.readDataUrlMimeType(value) ?? "application/octet-stream",
+      });
     }
 
     if (input.body?.type === "x-www-form-urlencoded") {
@@ -170,13 +178,10 @@ export class LocalRequestExecutor {
         }
 
         if (item.valueType === "file") {
-          const fileBuffer = Buffer.from(
-            item.value.includes(",") ? item.value.split(",").pop() ?? "" : item.value,
-            "base64",
-          );
+          const fileBuffer = this.toBase64Buffer(item.value);
           formData.append(
             item.key,
-            new Blob([fileBuffer], { type: item.mimeType ?? "application/octet-stream" }),
+            new Blob([this.toArrayBuffer(fileBuffer)], { type: item.mimeType ?? "application/octet-stream" }),
             item.fileName ?? "upload.bin",
           );
         } else {
@@ -192,6 +197,22 @@ export class LocalRequestExecutor {
 
   private formValues(value: unknown): MultipartFormValue[] {
     return Array.isArray(value) ? value as MultipartFormValue[] : [];
+  }
+
+  private toBase64Buffer(value: string): Buffer {
+    return Buffer.from(value.includes(",") ? value.split(",").pop() ?? "" : value, "base64");
+  }
+
+  private toArrayBuffer(buffer: Buffer): ArrayBuffer {
+    return buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength,
+    ) as ArrayBuffer;
+  }
+
+  private readDataUrlMimeType(value: string): string | undefined {
+    const match = /^data:([^;,]+)[;,]/.exec(value);
+    return match?.[1];
   }
 
   private isRedirect(status: number): boolean {

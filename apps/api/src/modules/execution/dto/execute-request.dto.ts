@@ -19,6 +19,7 @@ const bodyTypes: RequestBodyType[] = [
   "none",
   "json",
   "text",
+  "binary",
   "form-urlencoded",
   "multipart-form-data",
 ];

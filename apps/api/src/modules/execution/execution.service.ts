@@ -395,6 +395,18 @@ export class ExecutionService {
       return body;
     }
 
+    if (bodyType === "binary") {
+      const fileMeta = formDataValues.find(
+        (item) => item.valueType === "file" && item.value === body,
+      );
+      headers["content-type"] =
+        headers["content-type"] ??
+        fileMeta?.mimeType ??
+        this.readDataUrlMimeType(body) ??
+        "application/octet-stream";
+      return new Blob([this.toBase64Buffer(body)], { type: headers["content-type"] });
+    }
+
     if (bodyType === "form-urlencoded") {
       headers["content-type"] =
         headers["content-type"] ?? "application/x-www-form-urlencoded";
@@ -418,10 +430,7 @@ export class ExecutionService {
         }
 
         if (item.valueType === "file") {
-          const fileBuffer = Buffer.from(
-            item.value.includes(",") ? item.value.split(",").pop() ?? "" : item.value,
-            "base64",
-          );
+          const fileBuffer = this.toBase64Buffer(item.value);
           const blob = new Blob([fileBuffer], {
             type: item.mimeType ?? "application/octet-stream",
           });
@@ -435,6 +444,15 @@ export class ExecutionService {
     }
 
     return undefined;
+  }
+
+  private toBase64Buffer(value: string): Buffer {
+    return Buffer.from(value.includes(",") ? value.split(",").pop() ?? "" : value, "base64");
+  }
+
+  private readDataUrlMimeType(value: string): string | undefined {
+    const match = /^data:([^;,]+)[;,]/.exec(value);
+    return match?.[1];
   }
 
   private toHeaderRecord(headers: KeyValueItem[]): Record<string, string> {

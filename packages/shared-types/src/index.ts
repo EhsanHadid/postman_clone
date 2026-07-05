@@ -4,6 +4,7 @@ export type RequestBodyType =
   | "none"
   | "json"
   | "text"
+  | "binary"
   | "form-urlencoded"
   | "multipart-form-data";
 export type AuthType = "inherit" | "none" | "basic" | "bearer";
