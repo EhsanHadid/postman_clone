@@ -28,6 +28,7 @@ import {
   TrashIcon,
 } from "../../components/AppIcons";
 import { api } from "../../services/api";
+import { handleWheelScroll } from "../../services/wheelScroll";
 import { useCollectionsStore } from "../../store/collectionsStore";
 import { useCookiesStore } from "../../store/cookiesStore";
 import { useDialogStore } from "../../store/dialogStore";
@@ -1281,7 +1282,10 @@ export function CollectionsSidebar() {
               />
             </label>
 
-            <div className="sidebar-tree">
+            <div
+              className="sidebar-tree"
+              onWheel={(event) => handleWheelScroll(event, "vertical")}
+            >
               {filteredCollections.map((collection: CollectionTree) => {
                 const expanded = expandedCollectionIds.has(collection.id);
 
@@ -1510,7 +1514,10 @@ export function CollectionsSidebar() {
         ) : null}
 
         {mode === "history" ? (
-          <div className="sidebar-list">
+          <div
+            className="sidebar-list"
+            onWheel={(event) => handleWheelScroll(event, "vertical")}
+          >
             {historyEntries.length ? (
               historyEntries.map((entry) => (
                 <button
@@ -1551,7 +1558,10 @@ export function CollectionsSidebar() {
               </button>
             </div>
 
-            <div className="sidebar-list">
+            <div
+              className="sidebar-list"
+              onWheel={(event) => handleWheelScroll(event, "vertical")}
+            >
               {environments.map((environment) => (
                 <button
                   className={`sidebar-list__item ${
@@ -1579,7 +1589,10 @@ export function CollectionsSidebar() {
         ) : null}
 
         {mode === "cookies" ? (
-          <div className="sidebar-list">
+          <div
+            className="sidebar-list"
+            onWheel={(event) => handleWheelScroll(event, "vertical")}
+          >
             {Object.entries(cookiesByDomain).length ? (
               Object.entries(cookiesByDomain).map(([domain, domainCookies]) => (
                 <div className="sidebar-card" key={domain}>

@@ -9,6 +9,7 @@ import {
 import { useDialogStore } from "../../store/dialogStore";
 import { useEnvironmentsStore } from "../../store/environmentsStore";
 import { useLayoutStore } from "../../store/layoutStore";
+import { handleWheelScroll } from "../../services/wheelScroll";
 import { hasMeaningfulRequestData, useTabsStore } from "../../store/tabsStore";
 import type { RequestTabState } from "../../types/app";
 
@@ -120,7 +121,10 @@ export function RequestTabs() {
 
   return (
     <div className="workbench-tabs">
-      <div className="workbench-tabs__scroll">
+      <div
+        className="workbench-tabs__scroll"
+        onWheel={(event) => handleWheelScroll(event, "horizontal")}
+      >
         {tabs.map((tab) => (
           <button
             key={tab.id}

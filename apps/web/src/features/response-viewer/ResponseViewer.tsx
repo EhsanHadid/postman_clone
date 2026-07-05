@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { CodeEditor } from "../../components/CodeEditor";
+import { handleWheelScroll } from "../../services/wheelScroll";
 import { useTabsStore } from "../../store/tabsStore";
 
 function getStatusTone(status: number) {
@@ -82,7 +83,10 @@ export function ResponseViewer() {
             </div>
           </div>
 
-          <div className="editor-tabs editor-tabs--workbench">
+          <div
+            className="editor-tabs editor-tabs--workbench"
+            onWheel={(event) => handleWheelScroll(event, "horizontal")}
+          >
             {(["pretty", "raw", "headers", "cookies"] as const).map((tab) => (
               <button
                 key={tab}
@@ -120,7 +124,10 @@ export function ResponseViewer() {
             ) : null}
 
             {view === "headers" ? (
-              <div className="response-viewer__list">
+              <div
+                className="response-viewer__list"
+                onWheel={(event) => handleWheelScroll(event, "vertical")}
+              >
                 {Object.entries(response.headers).map(([key, value]) => (
                   <div className="response-viewer__row" key={key}>
                     <span className="response-viewer__key">{key}</span>
@@ -131,7 +138,10 @@ export function ResponseViewer() {
             ) : null}
 
             {view === "cookies" ? (
-              <div className="response-viewer__list">
+              <div
+                className="response-viewer__list"
+                onWheel={(event) => handleWheelScroll(event, "vertical")}
+              >
                 {response.cookies.length ? (
                   response.cookies.map((cookie) => (
                     <div className="response-viewer__row" key={`${cookie.domain}-${cookie.name}`}>

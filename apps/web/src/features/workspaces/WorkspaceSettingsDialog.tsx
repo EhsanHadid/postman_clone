@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { PublicUserProfile, WorkspaceRole } from "@postman-clone/shared-types";
 import { ImportExportControls } from "../import-export/ImportExportControls";
 import { api } from "../../services/api";
+import { handleWheelScroll } from "../../services/wheelScroll";
 import { useWorkspaceStore, workspacePermissions } from "../../store/workspaceStore";
 
 interface WorkspaceSettingsDialogProps {
@@ -140,7 +141,10 @@ export function WorkspaceSettingsDialog({ onClose }: WorkspaceSettingsDialogProp
           {error ? <div className="dialog__error workspace-settings__error">{error}</div> : null}
 
           {tab === "general" ? (
-            <div className="workspace-settings__content">
+            <div
+              className="workspace-settings__content"
+              onWheel={(event) => handleWheelScroll(event, "vertical")}
+            >
               <label className="dialog__field">
                 <span>Name</span>
                 <input
@@ -191,7 +195,10 @@ export function WorkspaceSettingsDialog({ onClose }: WorkspaceSettingsDialogProp
               </div>
             </div>
           ) : (
-            <div className="workspace-settings__content workspace-settings__content--members">
+            <div
+              className="workspace-settings__content workspace-settings__content--members"
+              onWheel={(event) => handleWheelScroll(event, "vertical")}
+            >
               {canManageMembers ? (
                 <div className="member-search-panel">
                   <input

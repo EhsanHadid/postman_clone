@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { handleWheelScroll } from "../services/wheelScroll";
 
 interface DrawerProps {
   title: string;
@@ -21,7 +22,12 @@ export function Drawer({ title, open, onClose, children }: DrawerProps) {
             Close
           </button>
         </header>
-        <div className="drawer__content">{children}</div>
+        <div
+          className="drawer__content"
+          onWheel={(event) => handleWheelScroll(event, "vertical")}
+        >
+          {children}
+        </div>
       </aside>
     </div>
   );

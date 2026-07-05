@@ -21,6 +21,7 @@ import { getEnvironmentVariableSuggestions } from "../../services/environmentVar
 import { readFileAsDataUrl } from "../../services/files";
 import { localDesktop } from "../../services/localDesktop";
 import { isDesktopRenderer, isPrivateNetworkUrl } from "../../services/runtime";
+import { handleWheelScroll } from "../../services/wheelScroll";
 import { getDesktopDownloadUrl, useAppConfigStore } from "../../store/appConfigStore";
 import { useCollectionsStore } from "../../store/collectionsStore";
 import { useDialogStore } from "../../store/dialogStore";
@@ -227,6 +228,45 @@ function getBinaryFile(draft: RequestDefinition) {
   return draft.formData.find((item) => item.valueType === "file" && item.value === draft.body);
 }
 
+function getContentTypeHeaderIndex(headers: RequestDefinition["headers"]) {
+  return headers.findIndex((header) => header.key.trim().toLowerCase() === "content-type");
+}
+
+function upsertContentTypeHeader(
+  headers: RequestDefinition["headers"],
+  contentType: string,
+): RequestDefinition["headers"] {
+  const headerIndex = getContentTypeHeaderIndex(headers);
+
+  if (headerIndex === -1) {
+    return [
+      ...headers,
+      {
+        id: crypto.randomUUID(),
+        key: "Content-Type",
+        value: contentType,
+        enabled: true,
+        description: "",
+      },
+    ];
+  }
+
+  return headers.map((header, index) =>
+    index === headerIndex
+      ? {
+          ...header,
+          key: header.key.trim() || "Content-Type",
+          value: contentType,
+          enabled: true,
+        }
+      : header,
+  );
+}
+
+function getFileContentType(file: File) {
+  return file.type || "application/octet-stream";
+}
+
 export function RequestEditor() {
   const tabs = useTabsStore((state) => state.tabs);
   const activeTabId = useTabsStore((state) => state.activeTabId);
@@ -244,6 +284,7 @@ export function RequestEditor() {
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
   const openSaveLocationDialog = useDialogStore((state) => state.openSaveLocationDialog);
   const openNoticeDialog = useDialogStore((state) => state.openNoticeDialog);
+  const openConfirmDialog = useDialogStore((state) => state.openConfirmDialog);
   const activeDialog = useDialogStore((state) => state.dialog);
   const [editingName, setEditingName] = useState(false);
 
@@ -284,7 +325,13 @@ export function RequestEditor() {
     }
 
     const value = await readFileAsDataUrl(file);
-    updateActiveDraft({
+    const contentType = getFileContentType(file);
+    const contentTypeHeader = draft.headers[getContentTypeHeaderIndex(draft.headers)];
+    const currentContentType = contentTypeHeader?.value.trim() ?? "";
+    const shouldUpdateContentType =
+      !currentContentType ||
+      currentContentType.toLowerCase() === contentType.toLowerCase();
+    const filePatch: Partial<RequestDefinition> = {
       body: value,
       formData: [
         {
@@ -294,10 +341,33 @@ export function RequestEditor() {
           enabled: true,
           valueType: "file",
           fileName: file.name,
-          mimeType: file.type || "application/octet-stream",
+          mimeType: contentType,
         },
       ],
+    };
+
+    updateActiveDraft({
+      ...filePatch,
+      ...(shouldUpdateContentType
+        ? { headers: upsertContentTypeHeader(draft.headers, contentType) }
+        : {}),
     });
+
+    if (!shouldUpdateContentType) {
+      openConfirmDialog({
+        title: "Update Content-Type?",
+        description: `The selected file is ${contentType}, but this request currently uses ${currentContentType}.`,
+        confirmLabel: "Update header",
+        cancelLabel: "Keep current",
+        onConfirm: () => {
+          const currentDraft =
+            useTabsStore.getState().tabs.find((tab) => tab.id === activeTabId)?.draft ?? draft;
+          updateActiveDraft({
+            headers: upsertContentTypeHeader(currentDraft.headers, contentType),
+          });
+        },
+      });
+    }
   };
 
   const persistRequest = useCallback(async (location?: {
@@ -616,7 +686,10 @@ export function RequestEditor() {
         </button>
       </div>
 
-      <div className="editor-tabs editor-tabs--workbench">
+      <div
+        className="editor-tabs editor-tabs--workbench"
+        onWheel={(event) => handleWheelScroll(event, "horizontal")}
+      >
         {editorTabs.map((tab) => (
           <button
             key={tab.key}
@@ -634,7 +707,10 @@ export function RequestEditor() {
         ))}
       </div>
 
-      <div className="request-editor__pane">
+      <div
+        className="request-editor__pane"
+        onWheel={(event) => handleWheelScroll(event, "vertical")}
+      >
         {activeTab.activeEditorTab === "params" ? (
           <KeyValueTable
             rows={draft.queryParams}

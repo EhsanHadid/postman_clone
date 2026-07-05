@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CollectionTree, CollectionTreeFolder } from "@postman-clone/shared-types";
 import { CloseIcon, CollectionIcon, FolderIcon } from "./AppIcons";
+import { handleWheelScroll } from "../services/wheelScroll";
 import { useCollectionsStore } from "../store/collectionsStore";
 import { useDialogStore } from "../store/dialogStore";
 
@@ -193,7 +194,10 @@ export function DialogHost() {
           </button>
         </header>
 
-        <div className="dialog__content">
+        <div
+          className="dialog__content"
+          onWheel={(event) => handleWheelScroll(event, "vertical")}
+        >
           {dialog.kind === "notice" ? (
             <div className="dialog__notice">{dialog.description}</div>
           ) : null}
