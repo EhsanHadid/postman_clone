@@ -8,6 +8,7 @@ import type {
 } from "@postman-clone/shared-types";
 import { LocalHistoryStore } from "./history-store";
 import { LocalRequestExecutor } from "./request-executor";
+import { scheduleUpdateChecks } from "./update-service";
 
 let historyStore: LocalHistoryStore;
 const requestExecutor = new LocalRequestExecutor();
@@ -68,6 +69,7 @@ async function createWindow() {
   });
 
   await loadRenderer(window);
+  scheduleUpdateChecks(window);
 }
 
 async function loadRenderer(window: BrowserWindow, attempt = 1): Promise<void> {

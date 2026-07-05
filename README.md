@@ -211,6 +211,31 @@ Output examples:
 
 Artifacts are retained for 90 days. Tagged releases attach the installer to the GitHub Release, which is the stable download source.
 
+### Desktop Auto Updates
+
+Packaged desktop builds check for updates shortly after launch and then every six hours. By default, the updater reads the latest GitHub Release from `EhsanHadid/postman_clone`, compares the release tag to the running app version, asks the user before installing, downloads the matching installer for the platform, launches it, and exits the current app.
+
+Optional desktop updater environment variables:
+
+- `POSTMAN_CLONE_UPDATE_REPO`: GitHub repo slug to check, for example `owner/repo`.
+- `POSTMAN_CLONE_UPDATE_MANIFEST_URL`: JSON manifest URL for controlled rollout flags.
+- `POSTMAN_CLONE_DISABLE_UPDATE_CHECK=1`: disables packaged update checks.
+- `POSTMAN_CLONE_ENABLE_DEV_UPDATE_CHECK=1`: allows update checks in development.
+
+Manifest example:
+
+```json
+{
+  "enabled": true,
+  "version": "1.0.22",
+  "notes": "Update notes shown in the prompt.",
+  "urls": {
+    "windows": "https://github.com/owner/repo/releases/download/v-1.0.22/Postman-Clone-Desktop-v1.0.22-Windows-x64.exe",
+    "linux": "https://github.com/owner/repo/releases/download/v-1.0.22/Postman-Clone-Desktop-v1.0.22-Linux-x64.deb"
+  }
+}
+```
+
 ## Deployment
 
 ### 1. Prepare Production Environment
