@@ -143,7 +143,7 @@ export function WorkspaceSettingsDialog({ onClose }: WorkspaceSettingsDialogProp
           {tab === "general" ? (
             <div
               className="workspace-settings__content"
-              onWheel={(event) => handleWheelScroll(event, "vertical")}
+              onWheelCapture={(event) => handleWheelScroll(event, "vertical")}
             >
               <label className="dialog__field">
                 <span>Name</span>
@@ -197,7 +197,7 @@ export function WorkspaceSettingsDialog({ onClose }: WorkspaceSettingsDialogProp
           ) : (
             <div
               className="workspace-settings__content workspace-settings__content--members"
-              onWheel={(event) => handleWheelScroll(event, "vertical")}
+              onWheelCapture={(event) => handleWheelScroll(event, "vertical")}
             >
               {canManageMembers ? (
                 <div className="member-search-panel">

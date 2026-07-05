@@ -85,7 +85,7 @@ export function ResponseViewer() {
 
           <div
             className="editor-tabs editor-tabs--workbench"
-            onWheel={(event) => handleWheelScroll(event, "horizontal")}
+            onWheelCapture={(event) => handleWheelScroll(event, "horizontal")}
           >
             {(["pretty", "raw", "headers", "cookies"] as const).map((tab) => (
               <button
@@ -126,7 +126,7 @@ export function ResponseViewer() {
             {view === "headers" ? (
               <div
                 className="response-viewer__list"
-                onWheel={(event) => handleWheelScroll(event, "vertical")}
+                onWheelCapture={(event) => handleWheelScroll(event, "vertical")}
               >
                 {Object.entries(response.headers).map(([key, value]) => (
                   <div className="response-viewer__row" key={key}>
@@ -140,7 +140,7 @@ export function ResponseViewer() {
             {view === "cookies" ? (
               <div
                 className="response-viewer__list"
-                onWheel={(event) => handleWheelScroll(event, "vertical")}
+                onWheelCapture={(event) => handleWheelScroll(event, "vertical")}
               >
                 {response.cookies.length ? (
                   response.cookies.map((cookie) => (

@@ -123,7 +123,7 @@ export function RequestTabs() {
     <div className="workbench-tabs">
       <div
         className="workbench-tabs__scroll"
-        onWheel={(event) => handleWheelScroll(event, "horizontal")}
+        onWheelCapture={(event) => handleWheelScroll(event, "horizontal")}
       >
         {tabs.map((tab) => (
           <button

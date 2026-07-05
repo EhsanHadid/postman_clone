@@ -688,7 +688,7 @@ export function RequestEditor() {
 
       <div
         className="editor-tabs editor-tabs--workbench"
-        onWheel={(event) => handleWheelScroll(event, "horizontal")}
+        onWheelCapture={(event) => handleWheelScroll(event, "horizontal")}
       >
         {editorTabs.map((tab) => (
           <button
@@ -709,7 +709,7 @@ export function RequestEditor() {
 
       <div
         className="request-editor__pane"
-        onWheel={(event) => handleWheelScroll(event, "vertical")}
+        onWheelCapture={(event) => handleWheelScroll(event, "vertical")}
       >
         {activeTab.activeEditorTab === "params" ? (
           <KeyValueTable

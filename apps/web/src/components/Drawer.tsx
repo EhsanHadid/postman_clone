@@ -24,7 +24,7 @@ export function Drawer({ title, open, onClose, children }: DrawerProps) {
         </header>
         <div
           className="drawer__content"
-          onWheel={(event) => handleWheelScroll(event, "vertical")}
+          onWheelCapture={(event) => handleWheelScroll(event, "vertical")}
         >
           {children}
         </div>

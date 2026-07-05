@@ -196,7 +196,7 @@ export function DialogHost() {
 
         <div
           className="dialog__content"
-          onWheel={(event) => handleWheelScroll(event, "vertical")}
+          onWheelCapture={(event) => handleWheelScroll(event, "vertical")}
         >
           {dialog.kind === "notice" ? (
             <div className="dialog__notice">{dialog.description}</div>

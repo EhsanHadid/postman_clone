@@ -1284,7 +1284,7 @@ export function CollectionsSidebar() {
 
             <div
               className="sidebar-tree"
-              onWheel={(event) => handleWheelScroll(event, "vertical")}
+              onWheelCapture={(event) => handleWheelScroll(event, "vertical")}
             >
               {filteredCollections.map((collection: CollectionTree) => {
                 const expanded = expandedCollectionIds.has(collection.id);
@@ -1516,7 +1516,7 @@ export function CollectionsSidebar() {
         {mode === "history" ? (
           <div
             className="sidebar-list"
-            onWheel={(event) => handleWheelScroll(event, "vertical")}
+            onWheelCapture={(event) => handleWheelScroll(event, "vertical")}
           >
             {historyEntries.length ? (
               historyEntries.map((entry) => (
@@ -1560,7 +1560,7 @@ export function CollectionsSidebar() {
 
             <div
               className="sidebar-list"
-              onWheel={(event) => handleWheelScroll(event, "vertical")}
+              onWheelCapture={(event) => handleWheelScroll(event, "vertical")}
             >
               {environments.map((environment) => (
                 <button
@@ -1591,7 +1591,7 @@ export function CollectionsSidebar() {
         {mode === "cookies" ? (
           <div
             className="sidebar-list"
-            onWheel={(event) => handleWheelScroll(event, "vertical")}
+            onWheelCapture={(event) => handleWheelScroll(event, "vertical")}
           >
             {Object.entries(cookiesByDomain).length ? (
               Object.entries(cookiesByDomain).map(([domain, domainCookies]) => (
