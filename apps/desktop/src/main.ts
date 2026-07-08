@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain } from "electron";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type {
@@ -19,7 +20,19 @@ const isPackagedLinux = process.platform === "linux" && app.isPackaged;
 app.setName(appName);
 app.setAppUserModelId(appUserModelId);
 
-if (isPackagedLinux) {
+function configureLinuxRuntime() {
+  if (!isPackagedLinux) {
+    return;
+  }
+
+  const chromiumTempDir = join(app.getPath("userData"), "chromium-tmp");
+  mkdirSync(chromiumTempDir, { recursive: true, mode: 0o700 });
+
+  process.env.TMPDIR = chromiumTempDir;
+  process.env.TMP = chromiumTempDir;
+  process.env.TEMP = chromiumTempDir;
+  app.setPath("temp", chromiumTempDir);
+
   app.commandLine.appendSwitch("no-sandbox");
   app.commandLine.appendSwitch("disable-setuid-sandbox");
   app.commandLine.appendSwitch("disable-seccomp-filter-sandbox");
@@ -27,6 +40,8 @@ if (isPackagedLinux) {
   app.commandLine.appendSwitch("disable-gpu");
   app.disableHardwareAcceleration();
 }
+
+configureLinuxRuntime();
 
 function getAppIconFileName() {
   return process.platform === "linux" ? "icon-linux.png" : "icon.ico";
