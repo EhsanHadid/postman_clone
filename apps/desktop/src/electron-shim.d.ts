@@ -12,6 +12,13 @@ declare module "electron" {
     constructor(options: Record<string, unknown>);
     loadURL(url: string): Promise<void>;
     setProgressBar(progress: number): void;
+    show(): void;
+    close(): void;
+    isDestroyed(): boolean;
+    once(event: "ready-to-show" | "closed", listener: () => void): void;
+    webContents: {
+      executeJavaScript(script: string): Promise<unknown>;
+    };
     static getAllWindows(): BrowserWindow[];
   }
 

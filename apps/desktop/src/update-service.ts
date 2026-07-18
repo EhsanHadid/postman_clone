@@ -31,10 +31,78 @@ interface UpdateCandidate {
   downloadUrl: string;
 }
 
+type UpdateProgressState = {
+  title: string;
+  message: string;
+  progress: number | null;
+  detail?: string;
+};
+
+type DownloadProgress = {
+  progress: number | null;
+  downloadedBytes: number;
+  totalBytes: number | null;
+};
+
 const defaultReleaseRepo = "EhsanHadid/postman_clone";
 const updateCheckIntervalMs = 6 * 60 * 60 * 1000;
 let lastPromptedVersion: string | null = null;
 let checkInProgress = false;
+
+class UpdateProgressDialog {
+  private window: BrowserWindow | null = null;
+
+  async show(parent: BrowserWindow, candidate: UpdateCandidate) {
+    this.window = new BrowserWindow({
+      parent,
+      modal: true,
+      title: "Updating Postman Clone",
+      width: 440,
+      height: 292,
+      minWidth: 440,
+      minHeight: 292,
+      resizable: false,
+      maximizable: false,
+      minimizable: false,
+      closable: false,
+      fullscreenable: false,
+      autoHideMenuBar: true,
+      show: false,
+      backgroundColor: "#15181d",
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+
+    this.window.once("ready-to-show", () => this.window?.show());
+    this.window.once("closed", () => {
+      this.window = null;
+    });
+
+    await this.window.loadURL(createUpdateProgressHtml(candidate));
+  }
+
+  update(state: UpdateProgressState) {
+    if (!this.window || this.window.isDestroyed()) {
+      return;
+    }
+
+    void this.window.webContents.executeJavaScript(
+      `window.updateProgressState(${JSON.stringify(state)});`,
+    );
+  }
+
+  close() {
+    if (!this.window || this.window.isDestroyed()) {
+      return;
+    }
+
+    this.window.close();
+    this.window = null;
+  }
+}
 
 export function scheduleUpdateChecks(window: BrowserWindow) {
   if (!shouldCheckForUpdates()) {
@@ -188,10 +256,34 @@ async function promptForUpdate(window: BrowserWindow, candidate: UpdateCandidate
 
 async function downloadAndLaunchInstaller(window: BrowserWindow, candidate: UpdateCandidate) {
   let installerPath: string;
+  const progressDialog = new UpdateProgressDialog();
+
+  await progressDialog.show(window, candidate);
+  progressDialog.update({
+    title: "Preparing update",
+    message: `Getting Postman Clone ${candidate.version} ready.`,
+    progress: null,
+  });
 
   try {
-    installerPath = await downloadInstaller(window, candidate);
+    installerPath = await downloadInstaller(window, candidate, (progress) => {
+      const percent = progress.progress === null ? null : Math.round(progress.progress * 100);
+      progressDialog.update({
+        title: "Downloading update",
+        message: percent === null
+          ? "Downloading the installer."
+          : `Downloading the installer (${percent}%).`,
+        progress: progress.progress,
+        detail: formatDownloadProgress(progress),
+      });
+    });
   } catch (error) {
+    progressDialog.update({
+      title: "Download failed",
+      message: "The update could not be downloaded.",
+      progress: null,
+      detail: getErrorMessage(error),
+    });
     await dialog.showMessageBox(window, {
       type: "error",
       buttons: ["Close"],
@@ -199,12 +291,26 @@ async function downloadAndLaunchInstaller(window: BrowserWindow, candidate: Upda
       message: "The update could not be downloaded.",
       detail: getErrorMessage(error),
     });
+    progressDialog.close();
     return;
   }
+
+  progressDialog.update({
+    title: "Opening installer",
+    message: "The update has downloaded. Opening the installer now.",
+    progress: 1,
+    detail: basename(installerPath),
+  });
 
   const launchError = await shell.openPath(installerPath);
 
   if (launchError) {
+    progressDialog.update({
+      title: "Installer could not start",
+      message: "The update was downloaded, but the installer could not be opened.",
+      progress: 1,
+      detail: launchError,
+    });
     await dialog.showMessageBox(window, {
       type: "error",
       buttons: ["Close"],
@@ -212,13 +318,24 @@ async function downloadAndLaunchInstaller(window: BrowserWindow, candidate: Upda
       message: "The update was downloaded, but the installer could not be opened.",
       detail: launchError,
     });
+    progressDialog.close();
     return;
   }
+
+  progressDialog.update({
+    title: "Installer opened",
+    message: "Postman Clone will close so the installer can finish the update.",
+    progress: 1,
+  });
 
   setTimeout(() => app.quit(), 750);
 }
 
-async function downloadInstaller(window: BrowserWindow, candidate: UpdateCandidate) {
+async function downloadInstaller(
+  window: BrowserWindow,
+  candidate: UpdateCandidate,
+  onDownloadProgress: (progress: DownloadProgress) => void,
+) {
   const updatesDir = join(app.getPath("temp"), "postman-clone-updates");
   mkdirSync(updatesDir, { recursive: true });
 
@@ -228,7 +345,8 @@ async function downloadInstaller(window: BrowserWindow, candidate: UpdateCandida
 
   try {
     await downloadFile(candidate.downloadUrl, destination, (progress) => {
-      window.setProgressBar(progress);
+      onDownloadProgress(progress);
+      window.setProgressBar(progress.progress ?? 2);
     });
   } finally {
     window.setProgressBar(-1);
@@ -240,7 +358,7 @@ async function downloadInstaller(window: BrowserWindow, candidate: UpdateCandida
 function downloadFile(
   url: string,
   destination: string,
-  onProgress: (progress: number) => void,
+  onProgress: (progress: DownloadProgress) => void,
   redirectsRemaining = 5,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -271,9 +389,11 @@ function downloadFile(
 
       response.on("data", (chunk: Buffer) => {
         downloadedBytes += chunk.byteLength;
-        if (totalBytes > 0) {
-          onProgress(Math.min(downloadedBytes / totalBytes, 0.99));
-        }
+        onProgress({
+          progress: totalBytes > 0 ? Math.min(downloadedBytes / totalBytes, 0.99) : null,
+          downloadedBytes,
+          totalBytes: totalBytes > 0 ? totalBytes : null,
+        });
       });
 
       response.pipe(file);
@@ -286,6 +406,154 @@ function downloadFile(
     request.on("error", reject);
     request.end();
   });
+}
+
+function createUpdateProgressHtml(candidate: UpdateCandidate) {
+  const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
+    <title>Updating Postman Clone</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: #15181d;
+        color: #e3e7ec;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #15181d;
+      }
+
+      main {
+        display: grid;
+        gap: 18px;
+        padding: 28px;
+      }
+
+      .eyebrow {
+        color: #88919e;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        color: #f3f6fa;
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+
+      p {
+        margin: 0;
+        color: #bcc4cf;
+        line-height: 1.45;
+      }
+
+      .version-row {
+        display: flex;
+        gap: 10px;
+        color: #bcc4cf;
+        font-size: 13px;
+      }
+
+      .version-pill {
+        border: 1px solid #303642;
+        background: #20242a;
+        padding: 5px 8px;
+      }
+
+      .progress-track {
+        width: 100%;
+        height: 10px;
+        overflow: hidden;
+        border: 1px solid #303642;
+        background: #20242a;
+      }
+
+      .progress-fill {
+        width: 0%;
+        height: 100%;
+        background: #ff6c37;
+        transition: width 180ms ease;
+      }
+
+      .progress-track.is-indeterminate .progress-fill {
+        width: 38%;
+        animation: indeterminate 1.15s ease-in-out infinite;
+      }
+
+      .detail {
+        min-height: 20px;
+        color: #88919e;
+        font-size: 12px;
+      }
+
+      @keyframes indeterminate {
+        0% {
+          transform: translateX(-110%);
+        }
+
+        100% {
+          transform: translateX(280%);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="eyebrow">Postman Clone update</div>
+      <div>
+        <h1 id="title">Preparing update</h1>
+        <p id="message">Getting the installer ready.</p>
+      </div>
+      <div class="version-row">
+        <span class="version-pill">Current ${escapeHtml(app.getVersion())}</span>
+        <span class="version-pill">New ${escapeHtml(candidate.version)}</span>
+      </div>
+      <div>
+        <div class="progress-track is-indeterminate" id="track">
+          <div class="progress-fill" id="fill"></div>
+        </div>
+        <div class="detail" id="detail"></div>
+      </div>
+    </main>
+    <script>
+      const title = document.getElementById("title");
+      const message = document.getElementById("message");
+      const track = document.getElementById("track");
+      const fill = document.getElementById("fill");
+      const detail = document.getElementById("detail");
+
+      window.updateProgressState = (state) => {
+        title.textContent = state.title;
+        message.textContent = state.message;
+        detail.textContent = state.detail || "";
+
+        if (typeof state.progress === "number") {
+          track.classList.remove("is-indeterminate");
+          fill.style.width = Math.max(0, Math.min(100, state.progress * 100)) + "%";
+        } else {
+          track.classList.add("is-indeterminate");
+          fill.style.width = "";
+        }
+      };
+    </script>
+  </body>
+</html>`;
+
+  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
 function requestJson<T>(url: string, redirectsRemaining = 5): Promise<T> {
@@ -367,6 +635,40 @@ function versionParts(value: string) {
 
 function truncate(value: string, maxLength: number) {
   return value.length > maxLength ? `${value.slice(0, maxLength - 3)}...` : value;
+}
+
+function formatDownloadProgress(progress: DownloadProgress) {
+  if (progress.totalBytes === null) {
+    return `${formatBytes(progress.downloadedBytes)} downloaded`;
+  }
+
+  return `${formatBytes(progress.downloadedBytes)} of ${formatBytes(progress.totalBytes)}`;
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toFixed(value >= 10 ? 1 : 2)} ${units[unitIndex]}`;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function getErrorMessage(error: unknown) {

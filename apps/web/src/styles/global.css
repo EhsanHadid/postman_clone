@@ -949,12 +949,14 @@ textarea::placeholder {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  z-index: 30;
+  z-index: 120;
   min-width: 140px;
+  max-width: min(220px, calc(100vw - 24px));
   padding: 4px;
-  border: 1px solid var(--border);
-  background: var(--panel);
-  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--panel-bg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.46);
+  color: var(--text);
 }
 
 .sidebar-tree__menu-item {
