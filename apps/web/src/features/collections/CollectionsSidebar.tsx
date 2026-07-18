@@ -120,6 +120,18 @@ function closeRowActionMenu(event: MouseEvent<HTMLButtonElement>) {
   event.currentTarget.closest("details")?.removeAttribute("open");
 }
 
+function openRowActionMenu(event: MouseEvent<HTMLElement>, disabled: boolean) {
+  if (disabled) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  event.currentTarget
+    .querySelector<HTMLDetailsElement>(".sidebar-tree__menu")
+    ?.setAttribute("open", "");
+}
+
 function RowActionMenu({
   children,
   disabled,
@@ -279,6 +291,7 @@ function SidebarFolderNode({
           }
         }}
         onClick={() => onToggleFolder(folder.id)}
+        onContextMenu={(event) => openRowActionMenu(event, !canEditCollections)}
         onKeyDown={handleFolderKeyDown}
         role="button"
         tabIndex={0}
@@ -453,6 +466,7 @@ function SidebarFolderNode({
                   getRequestDropPlacement(event),
                 );
               }}
+              onContextMenu={(event) => openRowActionMenu(event, !canEditCollections)}
             >
               <button
                 className="sidebar-tree__request"
@@ -1426,6 +1440,7 @@ export function CollectionsSidebar() {
                                 getRequestDropPlacement(event),
                               );
                             }}
+                            onContextMenu={(event) => openRowActionMenu(event, !canEditCollections)}
                           >
                             <button
                               className="sidebar-tree__request"

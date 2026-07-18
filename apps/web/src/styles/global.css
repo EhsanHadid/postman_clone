@@ -991,6 +991,28 @@ textarea::placeholder {
   pointer-events: none;
 }
 
+.sidebar-tree__menu-trigger {
+  width: 28px;
+  height: 28px;
+  color: var(--text);
+  opacity: 0.78;
+  pointer-events: auto;
+}
+
+.sidebar-tree__menu-trigger .icon {
+  width: 17px;
+  height: 17px;
+}
+
+.sidebar-tree__menu-trigger:hover,
+.sidebar-tree__menu-trigger:focus-visible,
+.sidebar-tree__menu[open] .sidebar-tree__menu-trigger {
+  border-color: var(--border-strong);
+  background: var(--surface-muted);
+  color: var(--text);
+  opacity: 1;
+}
+
 .sidebar-tree__delete-action {
   color: #fca5a5;
 }
