@@ -33,6 +33,7 @@ export function VariableAwareInput({
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const [caretIndex, setCaretIndex] = useState(0);
   const [focused, setFocused] = useState(false);
+  const [highlightScrollLeft, setHighlightScrollLeft] = useState(0);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
   const activeToken = getActiveVariableToken(value, caretIndex);
   const suggestionByKey = useMemo(
@@ -107,9 +108,7 @@ export function VariableAwareInput({
     }
 
     setCaretIndex(input.selectionStart ?? 0);
-    if (highlightRef.current) {
-      highlightRef.current.scrollLeft = input.scrollLeft;
-    }
+    setHighlightScrollLeft(input.scrollLeft);
   };
 
   const insertSuggestion = (key: string) => {
@@ -146,20 +145,25 @@ export function VariableAwareInput({
         className={`${className ?? ""} variable-input__highlight`.trim()}
         ref={highlightRef}
       >
-        {highlightedParts.map((part, index) =>
-          part.type === "variable" ? (
-            <span
-              className={`variable-inline ${
-                part.found ? "variable-inline--found" : "variable-inline--missing"
-              }`}
-              key={`${part.value}-${index}`}
-            >
-              {part.value}
-            </span>
-          ) : (
-            <span key={`text-${index}`}>{part.value || "\u00a0"}</span>
-          ),
-        )}
+        <div
+          className="variable-input__highlight-content"
+          style={{ transform: `translateX(-${highlightScrollLeft}px)` }}
+        >
+          {highlightedParts.map((part, index) =>
+            part.type === "variable" ? (
+              <span
+                className={`variable-inline ${
+                  part.found ? "variable-inline--found" : "variable-inline--missing"
+                }`}
+                key={`${part.value}-${index}`}
+              >
+                {part.value}
+              </span>
+            ) : (
+              <span key={`text-${index}`}>{part.value || "\u00a0"}</span>
+            ),
+          )}
+        </div>
       </div>
       <input
         className={`${className ?? ""} variable-input__control`.trim()}

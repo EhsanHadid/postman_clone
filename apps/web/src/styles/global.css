@@ -1490,9 +1490,14 @@ textarea::placeholder {
   pointer-events: none;
   white-space: pre;
   overflow: hidden;
-  text-overflow: ellipsis;
   color: var(--text);
   font: var(--variable-font);
+}
+
+.variable-input__highlight-content {
+  display: inline-block;
+  min-width: max-content;
+  will-change: transform;
 }
 
 .variable-input__highlight.input,
